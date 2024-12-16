@@ -2,7 +2,7 @@
 @Author: Conghao Wong
 @Date: 2024-12-11 20:00:42
 @LastEditors: Conghao Wong
-@LastEditTime: 2024-12-13 16:39:09
+@LastEditTime: 2024-12-16 15:11:40
 @Github: https://cocoon2wong.github.io
 @Copyright 2024 Conghao Wong, All Rights Reserved.
 """
@@ -26,8 +26,8 @@ class ResonanceLayer(torch.nn.Module):
 
     def __init__(self, Args: Args,
                  traj_dim: int,
-                 hidden_dim: int,
-                 feature_dim: int,
+                 hidden_feature_dim: int,
+                 output_feature_dim: int,
                  *args, **kwargs) -> None:
 
         super().__init__(*args, **kwargs)
@@ -38,8 +38,8 @@ class ResonanceLayer(torch.nn.Module):
 
         # Settings
         self.partitions = self.rev_args.partitions
-        self.d = feature_dim
-        self.d_h = hidden_dim
+        self.d = output_feature_dim
+        self.d_h = hidden_feature_dim
         self.d_traj = traj_dim
 
         # Layers
@@ -52,7 +52,7 @@ class ResonanceLayer(torch.nn.Module):
         self.Tsteps, self.Tchannels = self.Tlayer.Tshape
 
         # Trajectory encoding (pure trajectories)
-        self.te = layers.TrajEncoding(self.channels, hidden_dim,
+        self.te = layers.TrajEncoding(self.channels, hidden_feature_dim,
                                       activation=torch.nn.ReLU,
                                       transform_layer=self.Tlayer)
 

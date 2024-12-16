@@ -1,8 +1,8 @@
 """
 @Author: Conghao Wong
-@Date: 2024-12-12 10:02:19
+@Date: 2024-12-16 14:56:33
 @LastEditors: Conghao Wong
-@LastEditTime: 2024-12-16 17:12:14
+@LastEditTime: 2024-12-16 17:11:54
 @Github: https://cocoon2wong.github.io
 @Copyright 2024 Conghao Wong, All Rights Reserved.
 """
@@ -15,15 +15,17 @@ from qpid.model import layers, transformer
 from .__args import ReverberationArgs as RevArgs
 
 
-class SelfReverberationLayer(torch.nn.Module):
+class ReReverberationLayer(torch.nn.Module):
     """
-    Self-Reverberation Layer
+    Re-Reverberation Layer
     ---
+    TODO
     """
 
     def __init__(self, Args: Args,
                  traj_dim: int,
-                 input_feature_dim: int,
+                 input_ego_feature_dim: int,
+                 input_re_feature_dim: int,
                  output_feature_dim: int,
                  *args, **kwargs) -> None:
 
@@ -35,7 +37,8 @@ class SelfReverberationLayer(torch.nn.Module):
 
         # Settings
         self.d = output_feature_dim
-        self.d_i = input_feature_dim
+        self.d_i_ego = input_ego_feature_dim
+        self.d_i_re = input_re_feature_dim
         self.d_traj = traj_dim
         self.d_noise = self.args.noise_depth
 
@@ -45,8 +48,15 @@ class SelfReverberationLayer(torch.nn.Module):
         self.Tlayer = Ttype((self.args.obs_frames, self.d_traj))
         self.iTlayer = iTtype((self.args.pred_frames, self.d_traj))
 
+        # Resonance kernel
+        self.kre = layers.Dense(self.d_i_ego, self.rev_args.partitions,
+                                torch.nn.Tanh)
+        self.concat_fc = layers.Dense(self.d_i_ego + self.d_i_re,
+                                      self.d//2,
+                                      torch.nn.Tanh)
+
         # Noise encoding
-        self.ie = layers.TrajEncoding(self.d_noise, self.d_i, torch.nn.Tanh)
+        self.ie = layers.TrajEncoding(self.d_noise, self.d//2, torch.nn.Tanh)
 
         # Shapes
         self.Tsteps_en, self.Tchannels_en = self.Tlayer.Tshape
@@ -54,7 +64,7 @@ class SelfReverberationLayer(torch.nn.Module):
 
         # Transformer as the feature extractor
         self.T = transformer.Transformer(
-            num_layers=4,
+            num_layers=2,
             d_model=self.d,
             num_heads=8,
             dff=512,
@@ -71,25 +81,35 @@ class SelfReverberationLayer(torch.nn.Module):
         self.outer = layers.OuterLayer(self.Tsteps_en, self.Tsteps_en)
         self.decoder = layers.Dense(self.d, self.Tchannels_de)
 
-    def forward(self, f_diff: torch.Tensor, linear_fit: torch.Tensor,
+    def forward(self, x_ego_diff: torch.Tensor,
+                f_ego_diff: torch.Tensor,
+                re_matrix: torch.Tensor,
                 training=None, mask=None, *args, **kwargs):
 
-        traj_targets = self.Tlayer(linear_fit)
+        # Apply the resonance kernel
+        kre = self.kre(f_ego_diff)      # (batch, Tsteps, partitions)
+        f_re = torch.transpose(re_matrix, -1, -2) @ kre[..., None]
+        f_re = f_re[..., 0]             # (batch, Tsteps, d/2)
+
+        # Concat resonance features with trajectories
+        f = torch.concat([f_ego_diff, f_re], dim=-1)
+        f = self.concat_fc(f)           # (batch, Tsteps, d/2)
 
         all_predictions = []
         repeats = self.args.K_train if training else self.args.K
+        traj_targets = self.Tlayer(x_ego_diff)
 
         for _ in range(repeats):
-            # Assign random noise and embedding -> (batch, Tsteps, d/2)
+            # Assign random ids and embedding -> (batch, Tsteps, d/2)
             z = torch.normal(mean=0, std=1,
-                             size=list(f_diff.shape[:-1]) + [self.d_noise])
-            f_z = self.ie(z.to(linear_fit.device))
+                             size=list(f.shape[:-1]) + [self.d_noise])
+            f_z = self.ie(z.to(x_ego_diff.device))
 
-            # -> (batch, Tsteps, 2*d_i)
-            f = torch.concat([f_diff, f_z], dim=-1)
+            # -> (batch, Tsteps, d)
+            f_final = torch.concat([f, f_z], dim=-1)
 
-            # Transformer backbone -> (batch, Tsteps, d)
-            f_tran, _ = self.T(inputs=f,
+            # Transformer -> (batch, Tsteps, d)
+            f_tran, _ = self.T(inputs=f_final,
                                targets=traj_targets,
                                training=training)
 

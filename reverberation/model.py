@@ -2,7 +2,7 @@
 @Author: Conghao Wong
 @Date: 2024-12-05 15:17:31
 @LastEditors: Conghao Wong
-@LastEditTime: 2024-12-13 16:39:51
+@LastEditTime: 2024-12-16 17:12:23
 @Github: https://cocoon2wong.github.io
 @Copyright 2024 Conghao Wong, All Rights Reserved.
 """
@@ -13,6 +13,7 @@ from qpid.training import Structure
 
 from .__args import ReverberationArgs
 from ._diffLayer import LinearDiffEncoding
+from ._reReverberation import ReReverberationLayer
 from ._resonanceLayer import ResonanceLayer
 from ._selfReverberation import SelfReverberationLayer
 
@@ -39,21 +40,39 @@ class ReverberationModel(Model):
         self.itlayer = it_type((self.args.pred_frames, self.dim))
 
         # Linear difference encoding
-        self.linear = LinearDiffEncoding(obs_frames=self.args.obs_frames,
-                                         pred_frames=self.args.pred_frames,
-                                         output_units=self.d//2,
-                                         transform_layer=self.tlayer)
+        self.linear = LinearDiffEncoding(
+            obs_frames=self.args.obs_frames,
+            pred_frames=self.args.pred_frames,
+            output_units=self.d//2,
+            transform_layer=self.tlayer,
+        )
 
-        # Resonance feature
-        self.resonance = ResonanceLayer(Args=self.args,
-                                        traj_dim=self.dim,
-                                        hidden_dim=self.d,
-                                        feature_dim=self.d//2)
+        if self.rev_args.compute_self_bias:
+            # Self-reverberation layer
+            self.self_rev = SelfReverberationLayer(
+                Args=self.args,
+                traj_dim=self.dim,
+                input_feature_dim=self.d//2,
+                output_feature_dim=self.d,
+            )
 
-        self.self_rev = SelfReverberationLayer(Args=self.args,
-                                               traj_dim=self.dim,
-                                               input_feature_dim=self.d//2,
-                                               output_feature_dim=self.d)
+        if self.rev_args.compute_re_bias:
+            # Resonance feature
+            self.resonance = ResonanceLayer(
+                Args=self.args,
+                traj_dim=self.dim,
+                hidden_feature_dim=self.d,
+                output_feature_dim=self.d//2,
+            )
+
+            # Re-reverberation layer
+            self.re_rev = ReReverberationLayer(
+                Args=self.args,
+                traj_dim=self.dim,
+                input_ego_feature_dim=self.d//2,
+                input_re_feature_dim=self.d//2,
+                output_feature_dim=self.d,
+            )
 
     def forward(self, inputs, training=None, mask=None, *args, **kwargs):
         # Unpack inputs
@@ -61,15 +80,30 @@ class ReverberationModel(Model):
         x_nei = self.get_input(inputs, INPUT_TYPES.NEIGHBOR_TRAJ)
 
         # Encode difference features (for ego agents)
-        f_diff, linear_fit, linear_base = self.linear(x_ego)
+        f_ego_diff, linear_fit, linear_base = self.linear(x_ego)
+        x_ego_diff = x_ego - linear_fit
 
-        # Compute resonance feature
-        # re_matrix, f_re = self.resonance(self.picker.get_center(x_ego)[..., :2],
-        #                                  self.picker.get_center(x_nei)[..., :2])
+        # Compute self-reverberation-bias
+        if self.rev_args.compute_self_bias:
+            self_rev_bias = self.self_rev(f_ego_diff, x_ego_diff)
+        else:
+            self_rev_bias = 0
 
-        self_rev = self.self_rev(f_diff, x_ego - linear_fit)
+        # Compute re-reverberation-bias
+        if self.rev_args.compute_re_bias:
+            re_matrix, f_re = self.resonance(self.picker.get_center(x_ego)[..., :2],
+                                             self.picker.get_center(x_nei)[..., :2])
 
-        return linear_base[..., None, :, :] + self_rev
+            re_rev_bias = self.re_rev(x_ego_diff, f_ego_diff, re_matrix)
+        else:
+            re_rev_bias = 0
+
+        if self.rev_args.compute_linear_base:
+            y = linear_base[..., None, :, :]
+        else:
+            y = 0
+
+        return y + self_rev_bias + re_rev_bias
 
 
 class Reverberation(Structure):
