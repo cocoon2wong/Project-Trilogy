@@ -2,7 +2,7 @@
 @Author: Conghao Wong
 @Date: 2024-12-05 15:17:31
 @LastEditors: Conghao Wong
-@LastEditTime: 2024-12-16 17:12:23
+@LastEditTime: 2024-12-19 10:58:56
 @Github: https://cocoon2wong.github.io
 @Copyright 2024 Conghao Wong, All Rights Reserved.
 """
@@ -13,7 +13,7 @@ from qpid.training import Structure
 
 from .__args import ReverberationArgs
 from ._diffLayer import LinearDiffEncoding
-from ._reReverberation import ReReverberationLayer
+from ._reReverberation import SocialReverberationLayer
 from ._resonanceLayer import ResonanceLayer
 from ._selfReverberation import SelfReverberationLayer
 
@@ -66,7 +66,7 @@ class ReverberationModel(Model):
             )
 
             # Re-reverberation layer
-            self.re_rev = ReReverberationLayer(
+            self.re_rev = SocialReverberationLayer(
                 Args=self.args,
                 traj_dim=self.dim,
                 input_ego_feature_dim=self.d//2,
@@ -85,7 +85,7 @@ class ReverberationModel(Model):
 
         # Compute self-reverberation-bias
         if self.rev_args.compute_self_bias:
-            self_rev_bias = self.self_rev(f_ego_diff, x_ego_diff)
+            self_rev_bias = self.self_rev(f_ego_diff, linear_fit)
         else:
             self_rev_bias = 0
 

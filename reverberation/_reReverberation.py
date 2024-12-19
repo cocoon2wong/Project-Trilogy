@@ -2,7 +2,7 @@
 @Author: Conghao Wong
 @Date: 2024-12-16 14:56:33
 @LastEditors: Conghao Wong
-@LastEditTime: 2024-12-16 17:11:54
+@LastEditTime: 2024-12-19 19:19:07
 @Github: https://cocoon2wong.github.io
 @Copyright 2024 Conghao Wong, All Rights Reserved.
 """
@@ -15,9 +15,9 @@ from qpid.model import layers, transformer
 from .__args import ReverberationArgs as RevArgs
 
 
-class ReReverberationLayer(torch.nn.Module):
+class SocialReverberationLayer(torch.nn.Module):
     """
-    Re-Reverberation Layer
+    Social Reverberation Layer
     ---
     TODO
     """
@@ -41,6 +41,7 @@ class ReReverberationLayer(torch.nn.Module):
         self.d_i_re = input_re_feature_dim
         self.d_traj = traj_dim
         self.d_noise = self.args.noise_depth
+        self.partitions = self.rev_args.partitions
 
         # Layers
         # Transform layers
@@ -48,19 +49,18 @@ class ReReverberationLayer(torch.nn.Module):
         self.Tlayer = Ttype((self.args.obs_frames, self.d_traj))
         self.iTlayer = iTtype((self.args.pred_frames, self.d_traj))
 
-        # Resonance kernel
-        self.kre = layers.Dense(self.d_i_ego, self.rev_args.partitions,
-                                torch.nn.Tanh)
-        self.concat_fc = layers.Dense(self.d_i_ego + self.d_i_re,
-                                      self.d//2,
-                                      torch.nn.Tanh)
-
-        # Noise encoding
-        self.ie = layers.TrajEncoding(self.d_noise, self.d//2, torch.nn.Tanh)
-
         # Shapes
         self.Tsteps_en, self.Tchannels_en = self.Tlayer.Tshape
         self.Tsteps_de, self.Tchannels_de = self.iTlayer.Tshape
+        self.max_steps = self.Tsteps_en * self.partitions
+
+        # Fusion layer (ego features and resonance features)
+        self.concat_fc = layers.Dense(self.d_i_ego + self.d_i_re,
+                                      self.d//2,
+                                      torch.nn.ReLU)
+
+        # Noise encoding
+        self.ie = layers.TrajEncoding(self.d_noise, self.d//2, torch.nn.Tanh)
 
         # Transformer as the feature extractor
         self.T = transformer.Transformer(
@@ -70,15 +70,15 @@ class ReReverberationLayer(torch.nn.Module):
             dff=512,
             input_vocab_size=self.Tchannels_en,
             target_vocab_size=self.Tchannels_en,
-            pe_input=self.Tsteps_en,
-            pe_target=self.Tsteps_en,
+            pe_input=self.max_steps,
+            pe_target=self.max_steps,
             include_top=False,
         )
 
         # FC layers for computing reverberation kernels
         self.k1 = layers.Dense(self.d, self.rev_args.Kc, torch.nn.Tanh)
         self.k2 = layers.Dense(self.d, self.Tsteps_de, torch.nn.Tanh)
-        self.outer = layers.OuterLayer(self.Tsteps_en, self.Tsteps_en)
+        self.outer = layers.OuterLayer(self.max_steps, self.max_steps)
         self.decoder = layers.Dense(self.d, self.Tchannels_de)
 
     def forward(self, x_ego_diff: torch.Tensor,
@@ -86,45 +86,46 @@ class ReReverberationLayer(torch.nn.Module):
                 re_matrix: torch.Tensor,
                 training=None, mask=None, *args, **kwargs):
 
-        # Apply the resonance kernel
-        kre = self.kre(f_ego_diff)      # (batch, Tsteps, partitions)
-        f_re = torch.transpose(re_matrix, -1, -2) @ kre[..., None]
-        f_re = f_re[..., 0]             # (batch, Tsteps, d/2)
+        # Stack partitions as additional temporal steps
+        # (batch, Tsteps, p, d/2) -> (batch, Tsteps*p, d/2)
+        f_re = torch.flatten(re_matrix, -3, -2)
 
-        # Concat resonance features with trajectories
-        f = torch.concat([f_ego_diff, f_re], dim=-1)
-        f = self.concat_fc(f)           # (batch, Tsteps, d/2)
+        # Repeat obs on all partitions -> (batch, Tsteps*p, d/2)
+        traj_targets = torch.repeat_interleave(self.Tlayer(x_ego_diff),
+                                               self.partitions, dim=-2)
+        f_ego = torch.repeat_interleave(f_ego_diff, self.partitions, dim=-2)
+
+        # Partition-wise concat -> (batch, Tsteps*p, d/2)
+        f = self.concat_fc(torch.concat([f_re, f_ego], dim=-1))
 
         all_predictions = []
         repeats = self.args.K_train if training else self.args.K
-        traj_targets = self.Tlayer(x_ego_diff)
-
         for _ in range(repeats):
-            # Assign random ids and embedding -> (batch, Tsteps, d/2)
+            # Assign random noise and embedding -> (batch, Tsteps*p, d/2)
             z = torch.normal(mean=0, std=1,
                              size=list(f.shape[:-1]) + [self.d_noise])
-            f_z = self.ie(z.to(x_ego_diff.device))
+            f_z = self.ie(z.to(f.device))
 
             # -> (batch, Tsteps, d)
             f_final = torch.concat([f, f_z], dim=-1)
 
-            # Transformer -> (batch, Tsteps, d)
+            # Transformer backbone -> (batch, Tsteps*p, d)
             f_tran, _ = self.T(inputs=f_final,
                                targets=traj_targets,
                                training=training)
 
-            # Outer product -> (batch, d, Tsteps, Tsteps)
+            # Outer product -> (batch, d, Tsteps*d, Tsteps*d)
             f_tran_t = torch.transpose(f_tran, -1, -2)
             f_o = self.outer(f_tran_t, f_tran_t)
 
             # Compute reverberation kernels
-            k1 = self.k1(f_tran)        # (batch, Tsteps, Kc)
-            k2 = self.k2(f_tran)        # (batch, Tsteps, Tsteps_de)
+            k1 = self.k1(f_tran)        # (batch, Tsteps*d, Kc)
+            k2 = self.k2(f_tran)        # (batch, Tsteps*d, Tsteps_de)
 
             if self.rev_args.draw_kernels:
                 from .utils import show_kernel
-                show_kernel(k1, 'k1.png')
-                show_kernel(k2, 'k2.png')
+                show_kernel(k1, 're_k1.png')
+                show_kernel(k2, 're_k2.png')
 
             # Apply k1
             f1 = f_o @ k1[..., None, :, :]    # (batch, d, Tsteps, Kc)

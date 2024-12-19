@@ -2,7 +2,7 @@
 @Author: Conghao Wong
 @Date: 2024-12-12 10:02:19
 @LastEditors: Conghao Wong
-@LastEditTime: 2024-12-16 17:12:14
+@LastEditTime: 2024-12-19 19:28:00
 @Github: https://cocoon2wong.github.io
 @Copyright 2024 Conghao Wong, All Rights Reserved.
 """
@@ -45,12 +45,12 @@ class SelfReverberationLayer(torch.nn.Module):
         self.Tlayer = Ttype((self.args.obs_frames, self.d_traj))
         self.iTlayer = iTtype((self.args.pred_frames, self.d_traj))
 
-        # Noise encoding
-        self.ie = layers.TrajEncoding(self.d_noise, self.d_i, torch.nn.Tanh)
-
         # Shapes
         self.Tsteps_en, self.Tchannels_en = self.Tlayer.Tshape
         self.Tsteps_de, self.Tchannels_de = self.iTlayer.Tshape
+
+        # Noise encoding
+        self.ie = layers.TrajEncoding(self.d_noise, self.d_i, torch.nn.Tanh)
 
         # Transformer as the feature extractor
         self.T = transformer.Transformer(
@@ -71,10 +71,15 @@ class SelfReverberationLayer(torch.nn.Module):
         self.outer = layers.OuterLayer(self.Tsteps_en, self.Tsteps_en)
         self.decoder = layers.Dense(self.d, self.Tchannels_de)
 
-    def forward(self, f_diff: torch.Tensor, linear_fit: torch.Tensor,
+    def forward(self, f_ego_diff: torch.Tensor,
+                linear_fit: torch.Tensor,
                 training=None, mask=None, *args, **kwargs):
 
+        # Target values for queries
         traj_targets = self.Tlayer(linear_fit)
+
+        # Trajectory features (ego)
+        f = f_ego_diff
 
         all_predictions = []
         repeats = self.args.K_train if training else self.args.K
@@ -82,14 +87,14 @@ class SelfReverberationLayer(torch.nn.Module):
         for _ in range(repeats):
             # Assign random noise and embedding -> (batch, Tsteps, d/2)
             z = torch.normal(mean=0, std=1,
-                             size=list(f_diff.shape[:-1]) + [self.d_noise])
-            f_z = self.ie(z.to(linear_fit.device))
+                             size=list(f.shape[:-1]) + [self.d_noise])
+            f_z = self.ie(z.to(f.device))
 
             # -> (batch, Tsteps, 2*d_i)
-            f = torch.concat([f_diff, f_z], dim=-1)
+            f_final = torch.concat([f, f_z], dim=-1)
 
             # Transformer backbone -> (batch, Tsteps, d)
-            f_tran, _ = self.T(inputs=f,
+            f_tran, _ = self.T(inputs=f_final,
                                targets=traj_targets,
                                training=training)
 
@@ -103,8 +108,8 @@ class SelfReverberationLayer(torch.nn.Module):
 
             if self.rev_args.draw_kernels:
                 from .utils import show_kernel
-                show_kernel(k1, 'k1.png')
-                show_kernel(k2, 'k2.png')
+                show_kernel(k1, 'self_k1.png')
+                show_kernel(k2, 'self_k2.png')
 
             # Apply k1
             f1 = f_o @ k1[..., None, :, :]    # (batch, d, Tsteps, Kc)
@@ -118,5 +123,5 @@ class SelfReverberationLayer(torch.nn.Module):
             y = self.iTlayer(self.decoder(f2))          # (b, Kc, pred, dim)
             all_predictions.append(y)
 
-        all_predictions = torch.concat(all_predictions, dim=-3)
-        return all_predictions
+        # Stack random output -> (batch, K, n_key, dim)
+        return torch.concat(all_predictions, dim=-3)

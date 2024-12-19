@@ -2,7 +2,7 @@
 @Author: Conghao Wong
 @Date: 2024-12-11 20:00:42
 @LastEditors: Conghao Wong
-@LastEditTime: 2024-12-16 15:11:40
+@LastEditTime: 2024-12-19 19:25:56
 @Github: https://cocoon2wong.github.io
 @Copyright 2024 Conghao Wong, All Rights Reserved.
 """
@@ -90,17 +90,25 @@ class ResonanceLayer(torch.nn.Module):
         f_angle = f_angle[..., ::2]
 
         # Partitioning
-        partition_indices = f_angle / (2*np.pi/self.partitions)
-        partition_indices = partition_indices.to(torch.int32)
+        partition_id = f_angle / (2*np.pi/self.partitions)
+        partition_id = partition_id.to(torch.int32)
 
-        # Mask neighbors
-        nei_mask = get_mask(torch.sum(x_nei_2d, dim=-1), torch.int32)[..., ::2]
-        partition_indices = partition_indices * nei_mask + -1 * (1 - nei_mask)
+        # Mask empty neighbors
+        interval = self.steps // self.Tsteps
+        valid_mask = get_mask(torch.sum(x_nei_2d, dim=-1), torch.int32)
+        valid_mask = valid_mask[..., ::interval]
+
+        # Remove ego agents from neighbors
+        non_self_mask = (torch.sum(x_nei_2d[..., -1, :], dim=-1) != 0)
+        non_self_mask = non_self_mask.to(torch.int32)[..., None]
+
+        valid_mask = valid_mask * non_self_mask
+        partition_id = partition_id * valid_mask + -1 * (1 - valid_mask)
 
         positions = []
         re_partitions = []
         for _p in range(self.partitions):
-            _mask = (partition_indices == _p).to(torch.float32)
+            _mask = (partition_id == _p).to(torch.float32)
             _mask_count = torch.sum(_mask, dim=-2)
 
             n = _mask_count + 0.0001
