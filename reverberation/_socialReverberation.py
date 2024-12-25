@@ -2,7 +2,7 @@
 @Author: Conghao Wong
 @Date: 2024-12-16 14:56:33
 @LastEditors: Conghao Wong
-@LastEditTime: 2024-12-19 19:19:07
+@LastEditTime: 2024-12-25 19:22:10
 @Github: https://cocoon2wong.github.io
 @Copyright 2024 Conghao Wong, All Rights Reserved.
 """
@@ -52,7 +52,7 @@ class SocialReverberationLayer(torch.nn.Module):
         # Shapes
         self.Tsteps_en, self.Tchannels_en = self.Tlayer.Tshape
         self.Tsteps_de, self.Tchannels_de = self.iTlayer.Tshape
-        self.max_steps = self.Tsteps_en * self.partitions
+        self.max_steps = max(self.Tsteps_en, self.partitions)
 
         # Fusion layer (ego features and resonance features)
         self.concat_fc = layers.Dense(self.d_i_ego + self.d_i_re,
@@ -86,41 +86,40 @@ class SocialReverberationLayer(torch.nn.Module):
                 re_matrix: torch.Tensor,
                 training=None, mask=None, *args, **kwargs):
 
-        # Stack partitions as additional temporal steps
-        # (batch, Tsteps, p, d/2) -> (batch, Tsteps*p, d/2)
-        f_re = torch.flatten(re_matrix, -3, -2)
+        # Pad features to keep the compatible tensor shape
+        f_diff_pad = pad(f_ego_diff, self.max_steps)
+        f_re_pad = pad(re_matrix, self.max_steps)
 
-        # Repeat obs on all partitions -> (batch, Tsteps*p, d/2)
-        traj_targets = torch.repeat_interleave(self.Tlayer(x_ego_diff),
-                                               self.partitions, dim=-2)
-        f_ego = torch.repeat_interleave(f_ego_diff, self.partitions, dim=-2)
-
-        # Partition-wise concat -> (batch, Tsteps*p, d/2)
-        f = self.concat_fc(torch.concat([f_re, f_ego], dim=-1))
+        # Concat and fuse resonance matrices with trajectory features
+        f_behavior = torch.concat([f_diff_pad, f_re_pad], dim=-1)
+        f_behavior = self.concat_fc(f_behavior)
 
         all_predictions = []
         repeats = self.args.K_train if training else self.args.K
+        traj_targets = self.Tlayer(x_ego_diff)
+        traj_targets = pad(traj_targets, self.max_steps)
+
         for _ in range(repeats):
-            # Assign random noise and embedding -> (batch, Tsteps*p, d/2)
+            # Assign random ids and embedding -> (batch, steps, d)
             z = torch.normal(mean=0, std=1,
-                             size=list(f.shape[:-1]) + [self.d_noise])
-            f_z = self.ie(z.to(f.device))
+                             size=list(f_behavior.shape[:-1]) + [self.d_noise])
+            re_f_z = self.ie(z.to(x_ego_diff.device))
 
-            # -> (batch, Tsteps, d)
-            f_final = torch.concat([f, f_z], dim=-1)
+            # (batch, steps, 2*d)
+            re_f_final = torch.concat([f_behavior, re_f_z], dim=-1)
 
-            # Transformer backbone -> (batch, Tsteps*p, d)
-            f_tran, _ = self.T(inputs=f_final,
+            # Transformer outputs' shape is (batch, steps, d)
+            f_tran, _ = self.T(inputs=re_f_final,
                                targets=traj_targets,
                                training=training)
 
-            # Outer product -> (batch, d, Tsteps*d, Tsteps*d)
+            # Outer product -> (batch, d, steps, steps)
             f_tran_t = torch.transpose(f_tran, -1, -2)
             f_o = self.outer(f_tran_t, f_tran_t)
 
             # Compute reverberation kernels
-            k1 = self.k1(f_tran)        # (batch, Tsteps*d, Kc)
-            k2 = self.k2(f_tran)        # (batch, Tsteps*d, Tsteps_de)
+            k1 = self.k1(f_tran)        # (batch, steps, Kc)
+            k2 = self.k2(f_tran)        # (batch, steps, Tsteps_de)
 
             if self.rev_args.draw_kernels:
                 from .utils import show_kernel
@@ -128,7 +127,7 @@ class SocialReverberationLayer(torch.nn.Module):
                 show_kernel(k2, 're_k2.png')
 
             # Apply k1
-            f1 = f_o @ k1[..., None, :, :]    # (batch, d, Tsteps, Kc)
+            f1 = f_o @ k1[..., None, :, :]    # (batch, d, steps, Kc)
 
             # Apply k2
             f2 = torch.transpose(f1, -1, -2) @ k2[..., None, :, :]
@@ -141,3 +140,16 @@ class SocialReverberationLayer(torch.nn.Module):
 
         all_predictions = torch.concat(all_predictions, dim=-3)
         return all_predictions
+
+
+def pad(input: torch.Tensor, max_steps: int):
+    """
+    Zero-padding the input tensor (whose shape must be `(batch, steps, dim)`).
+    It will pad the input tensor on the `steps` axis if `steps < max_steps`.
+    """
+    steps = input.shape[-2]
+    if steps < max_steps:
+        paddings = [0, 0, 0, max_steps - steps, 0, 0]
+        return torch.nn.functional.pad(input, paddings)
+    else:
+        return input

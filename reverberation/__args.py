@@ -2,7 +2,7 @@
 @Author: Conghao Wong
 @Date: 2024-12-05 15:14:02
 @LastEditors: Conghao Wong
-@LastEditTime: 2024-12-16 17:11:36
+@LastEditTime: 2024-12-25 19:22:29
 @Github: https://cocoon2wong.github.io
 @Copyright 2024 Conghao Wong, All Rights Reserved.
 """
@@ -47,6 +47,21 @@ class ReverberationArgs(EmptyArgs):
     @property
     def compute_re_bias(self) -> int:
         return self._arg('compute_re_bias', 1, argtype=STATIC,
+                         desc_in_model_summary='Compute re-bias')
+
+    @property
+    def test_with_linear_base(self) -> int:
+        return self._arg('test_with_linear_base', 1, argtype=TEMPORARY,
+                         desc_in_model_summary='Compute linear base')
+
+    @property
+    def test_with_self_bias(self) -> int:
+        return self._arg('test_with_self_bias', 1, argtype=TEMPORARY,
+                         desc_in_model_summary='Compute self-bias')
+
+    @property
+    def test_with_re_bias(self) -> int:
+        return self._arg('test_with_re_bias', 1, argtype=TEMPORARY,
                          desc_in_model_summary='Compute re-bias')
 
     @property

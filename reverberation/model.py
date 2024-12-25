@@ -2,7 +2,7 @@
 @Author: Conghao Wong
 @Date: 2024-12-05 15:17:31
 @LastEditors: Conghao Wong
-@LastEditTime: 2024-12-19 10:58:56
+@LastEditTime: 2024-12-25 19:23:20
 @Github: https://cocoon2wong.github.io
 @Copyright 2024 Conghao Wong, All Rights Reserved.
 """
@@ -13,9 +13,9 @@ from qpid.training import Structure
 
 from .__args import ReverberationArgs
 from ._diffLayer import LinearDiffEncoding
-from ._reReverberation import SocialReverberationLayer
 from ._resonanceLayer import ResonanceLayer
 from ._selfReverberation import SelfReverberationLayer
+from ._socialReverberation import SocialReverberationLayer
 
 
 class ReverberationModel(Model):
@@ -27,6 +27,7 @@ class ReverberationModel(Model):
         # Init args
         self.args._set_default('K', 1)
         self.args._set_default('K_train', 1)
+        self.args._set('output_pred_steps', 'all')
         self.rev_args = self.args.register_subargs(ReverberationArgs, 'rev')
 
         # Set model inputs
@@ -84,13 +85,13 @@ class ReverberationModel(Model):
         x_ego_diff = x_ego - linear_fit
 
         # Compute self-reverberation-bias
-        if self.rev_args.compute_self_bias:
-            self_rev_bias = self.self_rev(f_ego_diff, linear_fit)
+        if self.rev_args.compute_self_bias and self.rev_args.test_with_self_bias:
+            self_rev_bias = self.self_rev(f_ego_diff, x_ego_diff)
         else:
             self_rev_bias = 0
 
         # Compute re-reverberation-bias
-        if self.rev_args.compute_re_bias:
+        if self.rev_args.compute_re_bias and self.rev_args.test_with_re_bias:
             re_matrix, f_re = self.resonance(self.picker.get_center(x_ego)[..., :2],
                                              self.picker.get_center(x_nei)[..., :2])
 
@@ -98,7 +99,7 @@ class ReverberationModel(Model):
         else:
             re_rev_bias = 0
 
-        if self.rev_args.compute_linear_base:
+        if self.rev_args.compute_linear_base and self.rev_args.test_with_linear_base:
             y = linear_base[..., None, :, :]
         else:
             y = 0

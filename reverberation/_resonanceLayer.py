@@ -2,7 +2,7 @@
 @Author: Conghao Wong
 @Date: 2024-12-11 20:00:42
 @LastEditors: Conghao Wong
-@LastEditTime: 2024-12-19 19:25:56
+@LastEditTime: 2024-12-24 20:45:01
 @Github: https://cocoon2wong.github.io
 @Copyright 2024 Conghao Wong, All Rights Reserved.
 """
@@ -59,8 +59,11 @@ class ResonanceLayer(torch.nn.Module):
         # Position encoding (not positional encoding)
         self.ce = layers.TrajEncoding(2, self.d//2, torch.nn.ReLU)
 
-        self.fc1 = layers.Dense(self.d_h, self.d_h, torch.nn.ReLU)
-        self.fc2 = layers.Dense(self.d_h, self.d//2, torch.nn.ReLU)
+        self.fc1 = layers.Dense(self.d_h*self.Tsteps,
+                                self.d_h,
+                                torch.nn.ReLU)
+        self.fc2 = layers.Dense(self.d_h, self.d_h, torch.nn.ReLU)
+        self.fc3 = layers.Dense(self.d_h, self.d//2, torch.nn.ReLU)
 
     def forward(self, x_ego_2d: torch.Tensor, x_nei_2d: torch.Tensor):
 
@@ -73,65 +76,54 @@ class ResonanceLayer(torch.nn.Module):
         f_ego = f_pack[..., :1, :, :]
         f_nei = f_pack[..., 1:, :, :]
 
-        # Compute resonance features (for each neighbor)
-        f = f_ego * f_nei               # (batch, N, Tsteps, d)
-        f_re = self.fc2(self.fc1(f))    # (batch, N, Tsteps, d/2)
+        # Compute meta resonance features (for each neighbor)
+        # shape of the final output `f_re_meta`: (batch, N, d/2)
+        f = f_ego * f_nei   # -> (batch, N, obs, d)
+        f = torch.flatten(f, start_dim=-2, end_dim=-1)
+        f_re = self.fc3(self.fc2(self.fc1(f)))
 
         # Compute positional information in a SocialCircle-like way
         # `x_nei_2d` are relative values to target agents' last obs step
+        p_nei = x_nei_2d[..., -1, :]
+
         # Compute distances and angles (for all neighbors)
-        f_distance = torch.norm(x_nei_2d, dim=-1)       # (batch, N, obs)
-
-        f_angle = torch.atan2(x_nei_2d[..., 0], x_nei_2d[..., 1])
-        f_angle = f_angle % (2 * np.pi)                 # (batch, N, obs)
-
-        # Split the observation period into obs//2 intervals
-        f_distance = f_distance[..., ::2]
-        f_angle = f_angle[..., ::2]
+        f_distance = torch.norm(p_nei, dim=-1)
+        f_angle = torch.atan2(p_nei[..., 0], p_nei[..., 1])
+        f_angle = f_angle % (2 * np.pi)
 
         # Partitioning
-        partition_id = f_angle / (2*np.pi/self.partitions)
-        partition_id = partition_id.to(torch.int32)
+        partition_indices = f_angle / (2*np.pi/self.partitions)
+        partition_indices = partition_indices.to(torch.int32)
 
-        # Mask empty neighbors
-        interval = self.steps // self.Tsteps
-        valid_mask = get_mask(torch.sum(x_nei_2d, dim=-1), torch.int32)
-        valid_mask = valid_mask[..., ::interval]
-
-        # Remove ego agents from neighbors
-        non_self_mask = (torch.sum(x_nei_2d[..., -1, :], dim=-1) != 0)
-        non_self_mask = non_self_mask.to(torch.int32)[..., None]
-
-        valid_mask = valid_mask * non_self_mask
-        partition_id = partition_id * valid_mask + -1 * (1 - valid_mask)
+        # Mask neighbors
+        nei_mask = get_mask(torch.sum(x_nei_2d, dim=[-1, -2]), torch.int32)
+        partition_indices = partition_indices * nei_mask + -1 * (1 - nei_mask)
 
         positions = []
         re_partitions = []
         for _p in range(self.partitions):
-            _mask = (partition_id == _p).to(torch.float32)
-            _mask_count = torch.sum(_mask, dim=-2)
+            _mask = (partition_indices == _p).to(torch.float32)
+            _mask_count = torch.sum(_mask, dim=-1)
 
             n = _mask_count + 0.0001
 
             positions.append([])
-            positions[-1].append(torch.sum(f_distance * _mask, dim=-2) / n)
-            positions[-1].append(torch.sum(f_angle * _mask, dim=-2) / n)
+            positions[-1].append(torch.sum(f_distance * _mask, dim=-1) / n)
+            positions[-1].append(torch.sum(f_angle *
+                                           _mask, dim=-1) / n)
 
             re_partitions.append(
-                torch.sum(f_re * _mask[..., None], dim=-3) / n[..., None])
+                torch.sum(f_re * _mask[..., None], dim=-2) / n[..., None])
 
         # Stack all partitions
-        # -> (batch, Tsteps, partitions, 2)
         positions = [torch.stack(i, dim=-1) for i in positions]
         positions = torch.stack(positions, dim=-2)
-
-        # -> (batch, Tsteps, partitions, d/2)
         re_partitions = torch.stack(re_partitions, dim=-2)
 
-        # Encode circle components -> (batch, Tsteps, partitions, d/2)
+        # Encode circle components -> (batch, partition, d/2)
         f_pos = self.ce(positions)
 
-        # Concat resonance features -> (batch, Tsteps, partitions, d)
+        # Concat resonance features -> (batch, partition, d)
         re_matrix = torch.concat([re_partitions, f_pos], dim=-1)
 
         return re_matrix, f_re
