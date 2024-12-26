@@ -1,8 +1,8 @@
 """
 @Author: Conghao Wong
-@Date: 2024-12-11 20:00:42
+@Date: 2024-12-26 15:59:09
 @LastEditors: Conghao Wong
-@LastEditTime: 2024-12-26 21:02:36
+@LastEditTime: 2024-12-26 21:02:06
 @Github: https://cocoon2wong.github.io
 @Copyright 2024 Conghao Wong, All Rights Reserved.
 """
@@ -17,7 +17,7 @@ from qpid.utils import get_mask
 from .__args import ReverberationArgs as RevArgs
 
 
-class ResonanceLayer(torch.nn.Module):
+class FullStepResonanceLayer(torch.nn.Module):
     """
     Resonance Layer
     ---
@@ -59,9 +59,7 @@ class ResonanceLayer(torch.nn.Module):
         # Position encoding (not positional encoding)
         self.ce = layers.TrajEncoding(2, self.d//2, torch.nn.ReLU)
 
-        self.fc1 = layers.Dense(self.d_h*self.Tsteps,
-                                self.d_h,
-                                torch.nn.ReLU)
+        self.fc1 = layers.Dense(self.d_h, self.d_h, torch.nn.ReLU)
         self.fc2 = layers.Dense(self.d_h, self.d_h, torch.nn.ReLU)
         self.fc3 = layers.Dense(self.d_h, self.d//2, torch.nn.ReLU)
 
@@ -77,14 +75,18 @@ class ResonanceLayer(torch.nn.Module):
         f_nei = f_pack[..., 1:, :, :]
 
         # Compute meta resonance features (for each neighbor)
-        # shape of the final output `f_re`: (batch, N, d/2)
+        # shape of the final output `f_re`: (batch, N, obs, d/2)
         f = f_ego * f_nei   # -> (batch, N, obs, d)
-        f = torch.flatten(f, start_dim=-2, end_dim=-1)
         f_re = self.fc3(self.fc2(self.fc1(f)))
 
         # Compute positional information in a SocialCircle-like way
         # `x_nei_2d` are relative values to target agents' last obs step
-        p_nei = x_nei_2d[..., -1, :]
+        x_nei_real = x_nei_2d + x_ego_2d[..., None, -1:, :]
+        p_nei = x_nei_real - x_ego_2d[..., None, :, :]
+
+        # Time-resolution of the used transform
+        t_r = self.steps // self.Tsteps
+        p_nei = p_nei[..., ::t_r, :]
 
         # Compute distances and angles (for all neighbors)
         f_distance = torch.norm(p_nei, dim=-1)
@@ -96,32 +98,39 @@ class ResonanceLayer(torch.nn.Module):
         partition_indices = partition_indices.to(torch.int32)
 
         # Mask neighbors
-        nei_mask = get_mask(torch.sum(x_nei_2d, dim=[-1, -2]), torch.int32)
-        partition_indices = partition_indices * nei_mask + -1 * (1 - nei_mask)
+        valid_nei_mask = get_mask(torch.sum(p_nei, dim=-1), torch.int32)
+        non_self_mask = (f_distance > 0.005).to(torch.int32)
+        final_nei_mask = valid_nei_mask * non_self_mask
 
-        positions = []
-        re_partitions = []
+        partition_indices = (partition_indices * final_nei_mask +
+                             -1 * (1 - final_nei_mask))
+
+        positions: list[list[torch.Tensor]] = []
+        re_partitions: list[torch.Tensor] = []
         for _p in range(self.partitions):
             _mask = (partition_indices == _p).to(torch.float32)
-            _mask_count = torch.sum(_mask, dim=-1)
+            _mask_count = torch.sum(_mask, dim=-2)
 
             n = _mask_count + 0.0001
 
             positions.append([])
-            positions[-1].append(torch.sum(f_distance * _mask, dim=-1) / n)
-            positions[-1].append(torch.sum(f_angle * _mask, dim=-1) / n)
-            re_partitions.append(torch.sum(f_re * _mask[..., None], dim=-2) /
+            positions[-1].append(torch.sum(f_distance * _mask, dim=-2) / n)
+            positions[-1].append(torch.sum(f_angle * _mask, dim=-2) / n)
+            re_partitions.append(torch.sum(f_re * _mask[..., None], dim=-3) /
                                  n[..., None])
 
         # Stack all partitions
-        positions = [torch.stack(i, dim=-1) for i in positions]
-        positions = torch.stack(positions, dim=-2)
-        re_partitions = torch.stack(re_partitions, dim=-2)
+        # (batch, steps, partitions, 2)
+        positions_n = torch.stack([torch.stack(i, dim=-1) for i in positions],
+                                  dim=-2)
 
-        # Encode circle components -> (batch, partition, d/2)
-        f_pos = self.ce(positions)
+        # (batch, steps, partitions, d/2)
+        re_partitions_n = torch.stack(re_partitions, dim=-2)
 
-        # Concat resonance features -> (batch, partition, d)
-        re_matrix = torch.concat([re_partitions, f_pos], dim=-1)
+        # Encode circle components -> (batch, steps, partition, d/2)
+        f_pos = self.ce(positions_n)
+
+        # Concat resonance features -> (batch, steps, partition, d)
+        re_matrix = torch.concat([re_partitions_n, f_pos], dim=-1)
 
         return re_matrix, f_re

@@ -2,7 +2,7 @@
 @Author: Conghao Wong
 @Date: 2024-12-05 15:14:02
 @LastEditors: Conghao Wong
-@LastEditTime: 2024-12-25 19:22:29
+@LastEditTime: 2024-12-26 21:01:29
 @Github: https://cocoon2wong.github.io
 @Copyright 2024 Conghao Wong, All Rights Reserved.
 """
@@ -79,6 +79,19 @@ class ReverberationArgs(EmptyArgs):
         It is typically used in the playground mode.
         """
         return self._arg('draw_kernels', 0, argtype=TEMPORARY)
+
+    @property
+    def draw_kernels_norm(self) -> int:
+        return self._arg('draw_kernels_norm', 0, argtype=TEMPORARY)
+
+    @property
+    def full_steps(self) -> int:
+        """
+        Choose whether to compute all angle-based social partitions on all
+        observation frames or just on a flattened feature.
+        It may bring extra computation consumptions when this term is enabled.
+        """
+        return self._arg('full_steps', 0, argtype=STATIC)
 
     def _init_all_args(self):
         super()._init_all_args()

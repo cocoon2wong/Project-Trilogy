@@ -2,7 +2,7 @@
 @Author: Conghao Wong
 @Date: 2024-12-16 14:56:33
 @LastEditors: Conghao Wong
-@LastEditTime: 2024-12-25 19:22:10
+@LastEditTime: 2024-12-26 21:03:03
 @Github: https://cocoon2wong.github.io
 @Copyright 2024 Conghao Wong, All Rights Reserved.
 """
@@ -41,7 +41,7 @@ class SocialReverberationLayer(torch.nn.Module):
         self.d_i_re = input_re_feature_dim
         self.d_traj = traj_dim
         self.d_noise = self.args.noise_depth
-        self.partitions = self.rev_args.partitions
+        self.p = self.rev_args.partitions
 
         # Layers
         # Transform layers
@@ -52,7 +52,11 @@ class SocialReverberationLayer(torch.nn.Module):
         # Shapes
         self.Tsteps_en, self.Tchannels_en = self.Tlayer.Tshape
         self.Tsteps_de, self.Tchannels_de = self.iTlayer.Tshape
-        self.max_steps = max(self.Tsteps_en, self.partitions)
+
+        if not self.rev_args.full_steps:
+            self.steps = max(self.Tsteps_en, self.p)
+        else:
+            self.steps = self.Tsteps_en * self.p
 
         # Fusion layer (ego features and resonance features)
         self.concat_fc = layers.Dense(self.d_i_ego + self.d_i_re,
@@ -70,15 +74,15 @@ class SocialReverberationLayer(torch.nn.Module):
             dff=512,
             input_vocab_size=self.Tchannels_en,
             target_vocab_size=self.Tchannels_en,
-            pe_input=self.max_steps,
-            pe_target=self.max_steps,
+            pe_input=self.steps,
+            pe_target=self.steps,
             include_top=False,
         )
 
         # FC layers for computing reverberation kernels
         self.k1 = layers.Dense(self.d, self.rev_args.Kc, torch.nn.Tanh)
         self.k2 = layers.Dense(self.d, self.Tsteps_de, torch.nn.Tanh)
-        self.outer = layers.OuterLayer(self.max_steps, self.max_steps)
+        self.outer = layers.OuterLayer(self.steps, self.steps)
         self.decoder = layers.Dense(self.d, self.Tchannels_de)
 
     def forward(self, x_ego_diff: torch.Tensor,
@@ -87,17 +91,28 @@ class SocialReverberationLayer(torch.nn.Module):
                 training=None, mask=None, *args, **kwargs):
 
         # Pad features to keep the compatible tensor shape
-        f_diff_pad = pad(f_ego_diff, self.max_steps)
-        f_re_pad = pad(re_matrix, self.max_steps)
+        if not self.rev_args.full_steps:
+            f_diff_pad = pad(f_ego_diff, self.steps)
+            f_re_pad = pad(re_matrix, self.steps)
+        else:
+            f_diff_pad = torch.repeat_interleave(f_ego_diff, self.p, -2)
+            f_re_pad = torch.flatten(re_matrix, -3, -2)
 
         # Concat and fuse resonance matrices with trajectory features
+        # -> (batch, steps, d) (when `full_steps` is disabled)
+        # -> (batch, steps*partitions, d) (when `full_steps` is enabled)
         f_behavior = torch.concat([f_diff_pad, f_re_pad], dim=-1)
         f_behavior = self.concat_fc(f_behavior)
 
         all_predictions = []
         repeats = self.args.K_train if training else self.args.K
+
+        # Target value for queries
         traj_targets = self.Tlayer(x_ego_diff)
-        traj_targets = pad(traj_targets, self.max_steps)
+        if not self.rev_args.full_steps:
+            traj_targets = pad(traj_targets, self.steps)
+        else:
+            traj_targets = torch.repeat_interleave(traj_targets, self.p, -2)
 
         for _ in range(repeats):
             # Assign random ids and embedding -> (batch, steps, d)

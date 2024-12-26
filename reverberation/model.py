@@ -2,7 +2,7 @@
 @Author: Conghao Wong
 @Date: 2024-12-05 15:17:31
 @LastEditors: Conghao Wong
-@LastEditTime: 2024-12-25 19:23:20
+@LastEditTime: 2024-12-26 21:03:32
 @Github: https://cocoon2wong.github.io
 @Copyright 2024 Conghao Wong, All Rights Reserved.
 """
@@ -13,6 +13,7 @@ from qpid.training import Structure
 
 from .__args import ReverberationArgs
 from ._diffLayer import LinearDiffEncoding
+from ._fullStepResonanceLayer import FullStepResonanceLayer
 from ._resonanceLayer import ResonanceLayer
 from ._selfReverberation import SelfReverberationLayer
 from ._socialReverberation import SocialReverberationLayer
@@ -29,6 +30,9 @@ class ReverberationModel(Model):
         self.args._set_default('K_train', 1)
         self.args._set('output_pred_steps', 'all')
         self.rev_args = self.args.register_subargs(ReverberationArgs, 'rev')
+
+        if self.args.model == 'rev2':
+            self.rev_args._set('full_steps', 1)
 
         # Set model inputs
         self.set_inputs(INPUT_TYPES.OBSERVED_TRAJ,
@@ -58,8 +62,13 @@ class ReverberationModel(Model):
             )
 
         if self.rev_args.compute_re_bias:
+            if not self.rev_args.full_steps:
+                resonance_layer_type = ResonanceLayer
+            else:
+                resonance_layer_type = FullStepResonanceLayer
+
             # Resonance feature
-            self.resonance = ResonanceLayer(
+            self.resonance = resonance_layer_type(
                 Args=self.args,
                 traj_dim=self.dim,
                 hidden_feature_dim=self.d,
