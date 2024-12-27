@@ -2,7 +2,7 @@
 @Author: Conghao Wong
 @Date: 2024-12-11 20:00:42
 @LastEditors: Conghao Wong
-@LastEditTime: 2024-12-26 21:02:36
+@LastEditTime: 2024-12-27 09:42:08
 @Github: https://cocoon2wong.github.io
 @Copyright 2024 Conghao Wong, All Rights Reserved.
 """
@@ -21,7 +21,14 @@ class ResonanceLayer(torch.nn.Module):
     """
     Resonance Layer
     ---
-    TODO
+    Compute the spectral similarities of *pure* observed trajectories between
+    the ego agent and all other neighboring agents. An angle-based pooling will
+    be applied to gather these spectral similarities within limited angle-based
+    partitions.
+    *NOTE*: Arg `full_steps` may change how it behaves. It will compute the
+    spectral similarities on each temporal step (with specific temporal
+    resolutions) when this arg is enabled, otherwise on a flattened feature
+    that contains all temporal-spectral information.
     """
 
     def __init__(self, Args: Args,
@@ -44,7 +51,7 @@ class ResonanceLayer(torch.nn.Module):
 
         # Layers
         # Transform layers
-        Ttype, iTtype = layers.get_transform_layers(self.rev_args.T)
+        Ttype, _ = layers.get_transform_layers(self.rev_args.T)
         self.Tlayer = Ttype((self.args.obs_frames, self.d_traj))
 
         # Shapes
@@ -59,9 +66,13 @@ class ResonanceLayer(torch.nn.Module):
         # Position encoding (not positional encoding)
         self.ce = layers.TrajEncoding(2, self.d//2, torch.nn.ReLU)
 
-        self.fc1 = layers.Dense(self.d_h*self.Tsteps,
-                                self.d_h,
-                                torch.nn.ReLU)
+        # Encoding layers (for resonance features)
+        if self.rev_args.full_steps:
+            self.fc1 = layers.Dense(self.d_h, self.d_h, torch.nn.ReLU)
+        else:
+            self.fc1 = layers.Dense(self.d_h*self.Tsteps,
+                                    self.d_h,
+                                    torch.nn.ReLU)
         self.fc2 = layers.Dense(self.d_h, self.d_h, torch.nn.ReLU)
         self.fc3 = layers.Dense(self.d_h, self.d//2, torch.nn.ReLU)
 
@@ -77,14 +88,27 @@ class ResonanceLayer(torch.nn.Module):
         f_nei = f_pack[..., 1:, :, :]
 
         # Compute meta resonance features (for each neighbor)
-        # shape of the final output `f_re`: (batch, N, d/2)
+        # Shape of the final output `f_re`: (batch, N, (obs), d/2)
+        # The `(obs)` or `(steps)` dimension only exists when the arg
+        # `full_steps` is enabled
         f = f_ego * f_nei   # -> (batch, N, obs, d)
-        f = torch.flatten(f, start_dim=-2, end_dim=-1)
+
+        if not self.rev_args.full_steps:
+            f = torch.flatten(f, start_dim=-2, end_dim=-1)
+
         f_re = self.fc3(self.fc2(self.fc1(f)))
 
         # Compute positional information in a SocialCircle-like way
-        # `x_nei_2d` are relative values to target agents' last obs step
-        p_nei = x_nei_2d[..., -1, :]
+        if self.rev_args.full_steps:
+            # Time-resolution of the used transform
+            t_r = self.steps // self.Tsteps
+
+            # `x_nei_2d` is relative to ego's last observation step
+            x_nei_real = x_nei_2d + x_ego_2d[..., None, -1:, :]
+            p_nei = x_nei_real - x_ego_2d[..., None, :, :]
+            p_nei = p_nei[..., ::t_r, :]
+        else:
+            p_nei = x_nei_2d[..., -1, :]
 
         # Compute distances and angles (for all neighbors)
         f_distance = torch.norm(p_nei, dim=-1)
@@ -96,32 +120,47 @@ class ResonanceLayer(torch.nn.Module):
         partition_indices = partition_indices.to(torch.int32)
 
         # Mask neighbors
-        nei_mask = get_mask(torch.sum(x_nei_2d, dim=[-1, -2]), torch.int32)
-        partition_indices = partition_indices * nei_mask + -1 * (1 - nei_mask)
+        if self.rev_args.full_steps:
+            # Remove egos from neighbors (the self-neighbors)
+            valid_nei_mask = get_mask(torch.sum(p_nei, dim=-1), torch.int32)
+            non_self_mask = (f_distance > 0.005).to(torch.int32)
+            final_mask = valid_nei_mask * non_self_mask
+            j = -1      # Axis bias
+        else:
+            final_mask = get_mask(torch.sum(x_nei_2d, dim=[-1, -2]),
+                                  torch.int32)
+            j = 0
 
-        positions = []
-        re_partitions = []
+        partition_indices = (partition_indices * final_mask +
+                             -1 * (1 - final_mask))
+
+        # Angle-based pooling
+        pos_list: list[list[torch.Tensor]] = []
+        re_list: list[torch.Tensor] = []
         for _p in range(self.partitions):
             _mask = (partition_indices == _p).to(torch.float32)
-            _mask_count = torch.sum(_mask, dim=-1)
+            _mask_count = torch.sum(_mask, dim=-1+j)
 
             n = _mask_count + 0.0001
 
-            positions.append([])
-            positions[-1].append(torch.sum(f_distance * _mask, dim=-1) / n)
-            positions[-1].append(torch.sum(f_angle * _mask, dim=-1) / n)
-            re_partitions.append(torch.sum(f_re * _mask[..., None], dim=-2) /
-                                 n[..., None])
+            pos_list.append([])
+            pos_list[-1].append(torch.sum(f_distance * _mask, dim=-1+j) / n)
+            pos_list[-1].append(torch.sum(f_angle * _mask, dim=-1+j) / n)
+            re_list.append(torch.sum(f_re * _mask[..., None], dim=-2+j) /
+                           n[..., None])
 
         # Stack all partitions
-        positions = [torch.stack(i, dim=-1) for i in positions]
-        positions = torch.stack(positions, dim=-2)
-        re_partitions = torch.stack(re_partitions, dim=-2)
+        # (batch, (steps), partitions, 2)
+        positions = torch.stack([torch.stack(i, dim=-1) for i in pos_list],
+                                dim=-2)
 
-        # Encode circle components -> (batch, partition, d/2)
+        # (batch, (steps), partitions, d/2)
+        re_partitions = torch.stack(re_list, dim=-2)
+
+        # Encode circle components -> (batch, (steps), partition, d/2)
         f_pos = self.ce(positions)
 
-        # Concat resonance features -> (batch, partition, d)
+        # Concat resonance features -> (batch, (steps), partition, d)
         re_matrix = torch.concat([re_partitions, f_pos], dim=-1)
 
         return re_matrix, f_re
