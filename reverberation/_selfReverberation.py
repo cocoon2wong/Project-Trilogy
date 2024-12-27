@@ -2,7 +2,7 @@
 @Author: Conghao Wong
 @Date: 2024-12-12 10:02:19
 @LastEditors: Conghao Wong
-@LastEditTime: 2024-12-19 19:28:00
+@LastEditTime: 2024-12-27 10:42:34
 @Github: https://cocoon2wong.github.io
 @Copyright 2024 Conghao Wong, All Rights Reserved.
 """
@@ -19,6 +19,16 @@ class SelfReverberationLayer(torch.nn.Module):
     """
     Self-Reverberation Layer
     ---
+    Forecast the *self-decided* future trajectories only according to the
+    observed trajectories of ego agents themselves.
+    Two reverberation kernels will be computed to weighted sum historical
+    features to *wiring* past information into the future:
+
+    - **Self-Generation kernel**: Weighted sum features in different styles to
+      achieve the random/characterized/multi-style prediction goal;
+    - **Self-reverberation kernel**: Evaluate how much contribution that each
+      historical frame (step) has made when planning future trajectories
+      on each specific future frame (step).
     """
 
     def __init__(self, Args: Args,

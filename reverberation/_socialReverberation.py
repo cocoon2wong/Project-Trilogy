@@ -2,7 +2,7 @@
 @Author: Conghao Wong
 @Date: 2024-12-16 14:56:33
 @LastEditors: Conghao Wong
-@LastEditTime: 2024-12-26 21:03:03
+@LastEditTime: 2024-12-27 10:42:40
 @Github: https://cocoon2wong.github.io
 @Copyright 2024 Conghao Wong, All Rights Reserved.
 """
@@ -17,9 +17,22 @@ from .__args import ReverberationArgs as RevArgs
 
 class SocialReverberationLayer(torch.nn.Module):
     """
-    Social Reverberation Layer
+    Social-Reverberation Layer
     ---
-    TODO
+    Forecast the *social-caused* future trajectories according to the observed
+    trajectories of both ego agents and their neighbors.
+    Similar to the `SelfReververationLayer`, two reverberation kernels will be
+    computed to weighted sum historical features to *wiring* past information
+    into the future:
+
+    - **Social-Generation kernel**: Weighted sum features in different styles to
+      achieve the random/characterized/multi-style social behavior prediction;
+    - **Social-reverberation kernel**: Evaluate how much contribution that each
+      historical frame (step) has made when planning future trajectories and 
+      social behaviors on each specific future frame (step).
+
+    *NOTE* that the layer's behaviors may change according to
+    the arg `full_steps`.
     """
 
     def __init__(self, Args: Args,
@@ -53,10 +66,10 @@ class SocialReverberationLayer(torch.nn.Module):
         self.Tsteps_en, self.Tchannels_en = self.Tlayer.Tshape
         self.Tsteps_de, self.Tchannels_de = self.iTlayer.Tshape
 
-        if not self.rev_args.full_steps:
-            self.steps = max(self.Tsteps_en, self.p)
-        else:
+        if self.rev_args.full_steps:
             self.steps = self.Tsteps_en * self.p
+        else:
+            self.steps = max(self.Tsteps_en, self.p)
 
         # Fusion layer (ego features and resonance features)
         self.concat_fc = layers.Dense(self.d_i_ego + self.d_i_re,
@@ -91,12 +104,12 @@ class SocialReverberationLayer(torch.nn.Module):
                 training=None, mask=None, *args, **kwargs):
 
         # Pad features to keep the compatible tensor shape
-        if not self.rev_args.full_steps:
-            f_diff_pad = pad(f_ego_diff, self.steps)
-            f_re_pad = pad(re_matrix, self.steps)
-        else:
+        if self.rev_args.full_steps:
             f_diff_pad = torch.repeat_interleave(f_ego_diff, self.p, -2)
             f_re_pad = torch.flatten(re_matrix, -3, -2)
+        else:
+            f_diff_pad = pad(f_ego_diff, self.steps)
+            f_re_pad = pad(re_matrix, self.steps)
 
         # Concat and fuse resonance matrices with trajectory features
         # -> (batch, steps, d) (when `full_steps` is disabled)
@@ -109,10 +122,10 @@ class SocialReverberationLayer(torch.nn.Module):
 
         # Target value for queries
         traj_targets = self.Tlayer(x_ego_diff)
-        if not self.rev_args.full_steps:
-            traj_targets = pad(traj_targets, self.steps)
-        else:
+        if self.rev_args.full_steps:
             traj_targets = torch.repeat_interleave(traj_targets, self.p, -2)
+        else:
+            traj_targets = pad(traj_targets, self.steps)
 
         for _ in range(repeats):
             # Assign random ids and embedding -> (batch, steps, d)
