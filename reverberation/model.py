@@ -2,7 +2,7 @@
 @Author: Conghao Wong
 @Date: 2024-12-05 15:17:31
 @LastEditors: Conghao Wong
-@LastEditTime: 2024-12-27 09:44:57
+@LastEditTime: 2024-12-30 19:44:56
 @Github: https://cocoon2wong.github.io
 @Copyright 2024 Conghao Wong, All Rights Reserved.
 """
@@ -78,6 +78,24 @@ class ReverberationModel(Model):
                 output_feature_dim=self.d,
             )
 
+        if self.rev_args.compute_scene_bias:
+            from qpid.mods import segMaps
+
+            from ._sceneReverberation import SceneReverberationLayer
+
+            self.set_inputs(INPUT_TYPES.OBSERVED_TRAJ,
+                            INPUT_TYPES.NEIGHBOR_TRAJ,
+                            segMaps.INPUT_TYPES.SEG_MAP,
+                            segMaps.INPUT_TYPES.SEG_MAP_PARAS)
+
+            self.scene_rev = SceneReverberationLayer(
+                Args=self.args,
+                traj_dim=self.dim,
+                input_ego_feature_dim=self.d//2,
+                input_re_feature_dim=self.d//2,
+                output_feature_dim=self.d,
+            )
+
     def forward(self, inputs, training=None, mask=None, *args, **kwargs):
         # Unpack inputs
         x_ego = self.get_input(inputs, INPUT_TYPES.OBSERVED_TRAJ)
@@ -89,25 +107,37 @@ class ReverberationModel(Model):
 
         # Compute self-reverberation-bias
         if self.rev_args.compute_self_bias and self.rev_args.test_with_self_bias:
-            self_rev_bias = self.self_rev(f_ego_diff, x_ego_diff)
+            self_rev_bias = self.self_rev(f_ego_diff, x_ego_diff,
+                                          training, mask, *args, **kwargs)
         else:
             self_rev_bias = 0
 
         # Compute re-reverberation-bias
         if self.rev_args.compute_re_bias and self.rev_args.test_with_re_bias:
-            re_matrix, f_re = self.resonance(self.picker.get_center(x_ego)[..., :2],
-                                             self.picker.get_center(x_nei)[..., :2])
+            re_matrix, f_re = self.resonance(
+                x_ego_2d=self.picker.get_center(x_ego)[..., :2],
+                x_nei_2d=self.picker.get_center(x_nei)[..., :2]
+            )
 
-            re_rev_bias = self.re_rev(x_ego_diff, f_ego_diff, re_matrix)
+            re_rev_bias = self.re_rev(x_ego_diff, f_ego_diff, re_matrix,
+                                      training, mask, *args, **kwargs)
         else:
             re_rev_bias = 0
+
+        # Compute social-reverberation-bias
+        if self.rev_args.compute_scene_bias and self.rev_args.test_with_scene_bias:
+            scene_rev_bias = self.scene_rev(self, inputs,
+                                            x_ego_diff, f_ego_diff,
+                                            training, mask, *args, **kwargs)
+        else:
+            scene_rev_bias = 0
 
         if self.rev_args.compute_linear_base and self.rev_args.test_with_linear_base:
             y = linear_base[..., None, :, :]
         else:
             y = 0
 
-        return y + self_rev_bias + re_rev_bias
+        return y + self_rev_bias + re_rev_bias + scene_rev_bias
 
 
 class Reverberation(Structure):

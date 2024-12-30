@@ -2,7 +2,7 @@
 @Author: Conghao Wong
 @Date: 2024-12-05 15:14:02
 @LastEditors: Conghao Wong
-@LastEditTime: 2024-12-27 10:16:23
+@LastEditTime: 2024-12-30 20:19:52
 @Github: https://cocoon2wong.github.io
 @Copyright 2024 Conghao Wong, All Rights Reserved.
 """
@@ -59,12 +59,20 @@ class ReverberationArgs(EmptyArgs):
                          desc_in_model_summary='Compute re-bias')
 
     @property
+    def compute_scene_bias(self) -> int:
+        """
+        Whether to learn to forecast the scene-bias during training.
+        """
+        return self._arg('compute_scene_bias', 0, argtype=STATIC,
+                         desc_in_model_summary='Compute scene-bias')
+
+    @property
     def test_with_linear_base(self) -> int:
         """
         Whether to forecast the linear base when *testing* the model.
         """
         return self._arg('test_with_linear_base', 1, argtype=TEMPORARY,
-                         desc_in_model_summary='Compute linear base')
+                         desc_in_model_summary='Test with linear base')
 
     @property
     def test_with_self_bias(self) -> int:
@@ -72,7 +80,7 @@ class ReverberationArgs(EmptyArgs):
         Whether to forecast the self-bias when *testing* the model.
         """
         return self._arg('test_with_self_bias', 1, argtype=TEMPORARY,
-                         desc_in_model_summary='Compute self-bias')
+                         desc_in_model_summary='Test with self-bias')
 
     @property
     def test_with_re_bias(self) -> int:
@@ -80,7 +88,15 @@ class ReverberationArgs(EmptyArgs):
         Whether to forecast the re-bias when *testing* the model.
         """
         return self._arg('test_with_re_bias', 1, argtype=TEMPORARY,
-                         desc_in_model_summary='Compute re-bias')
+                         desc_in_model_summary='Test with re-bias')
+
+    @property
+    def test_with_scene_bias(self) -> int:
+        """
+        Whether to forecast the scene-bias when *testing* the model.
+        """
+        return self._arg('test_with_scene_bias', 1, argtype=TEMPORARY,
+                         desc_in_model_summary='Test with scene-bias')
 
     @property
     def partitions(self) -> int:
@@ -106,6 +122,10 @@ class ReverberationArgs(EmptyArgs):
         It may bring extra computation consumptions when this term is enabled.
         """
         return self._arg('full_steps', 0, argtype=STATIC)
+
+    @property
+    def scene_pool_size(self) -> int:
+        return self._arg('scene_pool_size', 2, argtype=STATIC)
 
     def _init_all_args(self):
         super()._init_all_args()
