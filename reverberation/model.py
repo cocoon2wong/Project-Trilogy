@@ -2,7 +2,7 @@
 @Author: Conghao Wong
 @Date: 2024-12-05 15:17:31
 @LastEditors: Conghao Wong
-@LastEditTime: 2024-12-27 09:44:57
+@LastEditTime: 2024-12-30 20:42:34
 @Github: https://cocoon2wong.github.io
 @Copyright 2024 Conghao Wong, All Rights Reserved.
 """
@@ -89,7 +89,7 @@ class ReverberationModel(Model):
 
         # Compute self-reverberation-bias
         if self.rev_args.compute_self_bias and self.rev_args.test_with_self_bias:
-            self_rev_bias = self.self_rev(f_ego_diff, x_ego_diff)
+            self_rev_bias = self.self_rev(f_ego_diff, x_ego_diff, training)
         else:
             self_rev_bias = 0
 
@@ -98,7 +98,7 @@ class ReverberationModel(Model):
             re_matrix, f_re = self.resonance(self.picker.get_center(x_ego)[..., :2],
                                              self.picker.get_center(x_nei)[..., :2])
 
-            re_rev_bias = self.re_rev(x_ego_diff, f_ego_diff, re_matrix)
+            re_rev_bias = self.re_rev(x_ego_diff, f_ego_diff, re_matrix, training)
         else:
             re_rev_bias = 0
 

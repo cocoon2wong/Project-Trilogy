@@ -2,7 +2,7 @@
 @Author: Conghao Wong
 @Date: 2024-12-11 20:00:42
 @LastEditors: Conghao Wong
-@LastEditTime: 2024-12-27 09:42:08
+@LastEditTime: 2024-12-30 20:57:01
 @Github: https://cocoon2wong.github.io
 @Copyright 2024 Conghao Wong, All Rights Reserved.
 """
@@ -101,7 +101,7 @@ class ResonanceLayer(torch.nn.Module):
         # Compute positional information in a SocialCircle-like way
         if self.rev_args.full_steps:
             # Time-resolution of the used transform
-            t_r = self.steps // self.Tsteps
+            t_r = int(np.ceil(self.steps / self.Tsteps))
 
             # `x_nei_2d` is relative to ego's last observation step
             x_nei_real = x_nei_2d + x_ego_2d[..., None, -1:, :]
