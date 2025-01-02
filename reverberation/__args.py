@@ -2,7 +2,7 @@
 @Author: Conghao Wong
 @Date: 2024-12-05 15:14:02
 @LastEditors: Conghao Wong
-@LastEditTime: 2024-12-27 10:16:23
+@LastEditTime: 2025-01-02 11:22:46
 @Github: https://cocoon2wong.github.io
 @Copyright 2024 Conghao Wong, All Rights Reserved.
 """
@@ -40,7 +40,7 @@ class ReverberationArgs(EmptyArgs):
         Whether to learn to forecast the linear base during training.
         """
         return self._arg('compute_linear_base', 1, argtype=STATIC,
-                         desc_in_model_summary='Compute linear base')
+                         desc_in_model_summary='Train with linear base')
 
     @property
     def compute_self_bias(self) -> int:
@@ -48,7 +48,7 @@ class ReverberationArgs(EmptyArgs):
         Whether to learn to forecast the self-bias during training.
         """
         return self._arg('compute_self_bias', 1, argtype=STATIC,
-                         desc_in_model_summary='Compute self-bias')
+                         desc_in_model_summary='Learn self-bias')
 
     @property
     def compute_re_bias(self) -> int:
@@ -56,31 +56,28 @@ class ReverberationArgs(EmptyArgs):
         Whether to learn to forecast the re-bias during training.
         """
         return self._arg('compute_re_bias', 1, argtype=STATIC,
-                         desc_in_model_summary='Compute re-bias')
+                         desc_in_model_summary='Learn re-bias')
 
     @property
     def test_with_linear_base(self) -> int:
         """
         Whether to forecast the linear base when *testing* the model.
         """
-        return self._arg('test_with_linear_base', 1, argtype=TEMPORARY,
-                         desc_in_model_summary='Compute linear base')
+        return self._arg('test_with_linear_base', 1, argtype=TEMPORARY)
 
     @property
     def test_with_self_bias(self) -> int:
         """
         Whether to forecast the self-bias when *testing* the model.
         """
-        return self._arg('test_with_self_bias', 1, argtype=TEMPORARY,
-                         desc_in_model_summary='Compute self-bias')
+        return self._arg('test_with_self_bias', 1, argtype=TEMPORARY)
 
     @property
     def test_with_re_bias(self) -> int:
         """
         Whether to forecast the re-bias when *testing* the model.
         """
-        return self._arg('test_with_re_bias', 1, argtype=TEMPORARY,
-                         desc_in_model_summary='Compute re-bias')
+        return self._arg('test_with_re_bias', 1, argtype=TEMPORARY)
 
     @property
     def partitions(self) -> int:
