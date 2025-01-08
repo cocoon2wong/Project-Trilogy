@@ -2,7 +2,7 @@
 @Author: Conghao Wong
 @Date: 2024-12-05 15:14:02
 @LastEditors: Conghao Wong
-@LastEditTime: 2025-01-02 11:22:46
+@LastEditTime: 2025-01-08 09:57:28
 @Github: https://cocoon2wong.github.io
 @Copyright 2024 Conghao Wong, All Rights Reserved.
 """
@@ -15,7 +15,7 @@ class ReverberationArgs(EmptyArgs):
     @property
     def Kc(self) -> int:
         """
-        The number of style channels in `Agent` model.
+        The number of style channels when making predictions.
         """
         return self._arg('Kc', 20, argtype=STATIC,
                          desc_in_model_summary='Output channels')
@@ -23,8 +23,7 @@ class ReverberationArgs(EmptyArgs):
     @property
     def T(self) -> str:
         """
-        Transformation type used to compute trajectory spectrums
-        on the ego agents.
+        Transform type used to compute trajectory spectrums.
 
         It could be:
         - `none`: no transformations
@@ -102,7 +101,8 @@ class ReverberationArgs(EmptyArgs):
         observation frames or just on a flattened feature.
         It may bring extra computation consumptions when this term is enabled.
         """
-        return self._arg('full_steps', 0, argtype=STATIC)
+        return self._arg('full_steps', 0, argtype=STATIC,
+                         desc_in_model_summary='Use full reverberation kernels')
 
     def _init_all_args(self):
         super()._init_all_args()
