@@ -2,7 +2,7 @@
 @Author: Conghao Wong
 @Date: 2024-12-12 10:02:19
 @LastEditors: Conghao Wong
-@LastEditTime: 2024-12-27 10:42:34
+@LastEditTime: 2025-01-09 19:55:22
 @Github: https://cocoon2wong.github.io
 @Copyright 2024 Conghao Wong, All Rights Reserved.
 """
@@ -118,8 +118,9 @@ class SelfReverberationLayer(torch.nn.Module):
 
             if self.rev_args.draw_kernels:
                 from .utils import show_kernel
-                show_kernel(k1, 'self_k1.png')
-                show_kernel(k2, 'self_k2.png')
+
+                show_kernel(k1, 'self_k1', 1, self.Tsteps_en, self.rev_args.Kc)
+                show_kernel(k2, 'self_k2', 1, self.Tsteps_en, self.Tsteps_de)
 
             # Apply k1
             f1 = f_o @ k1[..., None, :, :]    # (batch, d, Tsteps, Kc)

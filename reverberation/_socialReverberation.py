@@ -2,7 +2,7 @@
 @Author: Conghao Wong
 @Date: 2024-12-16 14:56:33
 @LastEditors: Conghao Wong
-@LastEditTime: 2024-12-27 10:42:40
+@LastEditTime: 2025-01-09 19:56:39
 @Github: https://cocoon2wong.github.io
 @Copyright 2024 Conghao Wong, All Rights Reserved.
 """
@@ -151,8 +151,11 @@ class SocialReverberationLayer(torch.nn.Module):
 
             if self.rev_args.draw_kernels:
                 from .utils import show_kernel
-                show_kernel(k1, 're_k1.png')
-                show_kernel(k2, 're_k2.png')
+
+                show_kernel(k1, 'social_k1', self.rev_args.partitions,
+                            self.Tsteps_en, self.rev_args.Kc)
+                show_kernel(k2, 'social_k2', self.rev_args.partitions,
+                            self.Tsteps_en, self.Tsteps_de)
 
             # Apply k1
             f1 = f_o @ k1[..., None, :, :]    # (batch, d, steps, Kc)
