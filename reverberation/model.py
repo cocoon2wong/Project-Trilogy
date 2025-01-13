@@ -2,7 +2,7 @@
 @Author: Conghao Wong
 @Date: 2024-12-05 15:17:31
 @LastEditors: Conghao Wong
-@LastEditTime: 2025-01-13 15:08:45
+@LastEditTime: 2025-01-13 16:11:40
 @Github: https://cocoon2wong.github.io
 @Copyright 2024 Conghao Wong, All Rights Reserved.
 """
@@ -38,6 +38,8 @@ class ReverberationModel(Model):
 
         if self.args.model != 'rev3':
             self.rev_args._set('lite', 1)
+
+        self.args._set('model', 'rev')
 
         # Set model inputs
         self.set_inputs(INPUT_TYPES.OBSERVED_TRAJ,
