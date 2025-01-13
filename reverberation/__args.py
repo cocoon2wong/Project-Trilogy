@@ -2,7 +2,7 @@
 @Author: Conghao Wong
 @Date: 2024-12-05 15:14:02
 @LastEditors: Conghao Wong
-@LastEditTime: 2025-01-08 09:57:28
+@LastEditTime: 2025-01-13 15:06:42
 @Github: https://cocoon2wong.github.io
 @Copyright 2024 Conghao Wong, All Rights Reserved.
 """
@@ -77,6 +77,24 @@ class ReverberationArgs(EmptyArgs):
         Whether to forecast the re-bias when *testing* the model.
         """
         return self._arg('test_with_re_bias', 1, argtype=TEMPORARY)
+
+    @property
+    def test_without_interactions(self) -> int:
+        """
+        Whether to forecast trajectories by considering social interactions.
+        It will compute all social-interaction-related components on the set
+        of empty neighbors if this args is set to `1`.
+        """
+        return self._arg('test_without_interactions', 0, argtype=TEMPORARY)
+
+    @property
+    def lite(self) -> int:
+        """
+        It controls whether to implement the full reverberation kernel on all
+        historical steps and angle-based partitions or the simplified shared-
+        steps.
+        """
+        return self._arg('lite', 0, argtype=STATIC)
 
     @property
     def partitions(self) -> int:

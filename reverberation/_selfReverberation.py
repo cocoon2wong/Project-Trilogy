@@ -2,7 +2,7 @@
 @Author: Conghao Wong
 @Date: 2024-12-12 10:02:19
 @LastEditors: Conghao Wong
-@LastEditTime: 2025-01-09 19:55:22
+@LastEditTime: 2025-01-13 15:08:08
 @Github: https://cocoon2wong.github.io
 @Copyright 2024 Conghao Wong, All Rights Reserved.
 """
@@ -13,6 +13,7 @@ from qpid.args import Args
 from qpid.model import layers, transformer
 
 from .__args import ReverberationArgs as RevArgs
+from .__layers import KernelLayer
 
 
 class SelfReverberationLayer(torch.nn.Module):
@@ -76,8 +77,14 @@ class SelfReverberationLayer(torch.nn.Module):
         )
 
         # FC layers for computing reverberation kernels
-        self.k1 = layers.Dense(self.d, self.rev_args.Kc, torch.nn.Tanh)
-        self.k2 = layers.Dense(self.d, self.Tsteps_de, torch.nn.Tanh)
+        if not self.rev_args.lite:
+            self.k1 = KernelLayer(self.d, self.d, self.rev_args.Kc)
+            self.k2 = KernelLayer(self.d, self.d, self.Tsteps_de)
+
+        else:
+            self.k1 = layers.Dense(self.d, self.rev_args.Kc, torch.nn.Tanh)
+            self.k2 = layers.Dense(self.d, self.Tsteps_de, torch.nn.Tanh)
+
         self.outer = layers.OuterLayer(self.Tsteps_en, self.Tsteps_en)
         self.decoder = layers.Dense(self.d, self.Tchannels_de)
 

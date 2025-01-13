@@ -2,7 +2,7 @@
 @Author: Conghao Wong
 @Date: 2024-12-11 19:19:54
 @LastEditors: Conghao Wong
-@LastEditTime: 2024-12-13 16:39:27
+@LastEditTime: 2025-01-13 15:07:31
 @Github: https://cocoon2wong.github.io
 @Copyright 2024 Conghao Wong, All Rights Reserved.
 """
@@ -105,3 +105,27 @@ class LinearDiffEncoding(torch.nn.Module):
             f_diff = f_diff + f_type
 
         return f_diff, linear_fit, linear_base
+
+
+class KernelLayer(torch.nn.Module):
+    """
+    Kernel Layer
+    ---
+    The 3-layer MLP to compute reverberation kernels.
+    `ReLU` is used in the first two layers, while `tanh` is used in the
+    output layer.
+    """
+
+    def __init__(self, input_units: int,
+                 hidden_units: int,
+                 output_units: int,
+                 *args, **kwargs) -> None:
+
+        super().__init__(*args, **kwargs)
+
+        self.l1 = layers.Dense(input_units, hidden_units, torch.nn.ReLU)
+        self.l2 = layers.Dense(hidden_units, hidden_units, torch.nn.ReLU)
+        self.l3 = layers.Dense(hidden_units, output_units, torch.nn.Tanh)
+
+    def forward(self, f: torch.Tensor) -> torch.Tensor:
+        return self.l3(self.l2(self.l1(f)))

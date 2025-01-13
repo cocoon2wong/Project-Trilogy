@@ -2,17 +2,20 @@
 @Author: Conghao Wong
 @Date: 2024-12-05 15:17:31
 @LastEditors: Conghao Wong
-@LastEditTime: 2024-12-30 20:42:34
+@LastEditTime: 2025-01-13 15:08:45
 @Github: https://cocoon2wong.github.io
 @Copyright 2024 Conghao Wong, All Rights Reserved.
 """
 
+import torch
+
 from qpid.constant import INPUT_TYPES
 from qpid.model import Model, layers
 from qpid.training import Structure
+from qpid.utils import INIT_POSITION
 
 from .__args import ReverberationArgs
-from ._diffLayer import LinearDiffEncoding
+from .__layers import LinearDiffEncoding
 from ._resonanceLayer import ResonanceLayer
 from ._selfReverberation import SelfReverberationLayer
 from ._socialReverberation import SocialReverberationLayer
@@ -30,8 +33,11 @@ class ReverberationModel(Model):
         self.args._set('output_pred_steps', 'all')
         self.rev_args = self.args.register_subargs(ReverberationArgs, 'rev')
 
-        if self.args.model == 'rev2':
+        if self.args.model in ['rev2', 'rev3']:
             self.rev_args._set('full_steps', 1)
+
+        if self.args.model != 'rev3':
+            self.rev_args._set('lite', 1)
 
         # Set model inputs
         self.set_inputs(INPUT_TYPES.OBSERVED_TRAJ,
@@ -83,6 +89,9 @@ class ReverberationModel(Model):
         x_ego = self.get_input(inputs, INPUT_TYPES.OBSERVED_TRAJ)
         x_nei = self.get_input(inputs, INPUT_TYPES.NEIGHBOR_TRAJ)
 
+        if self.rev_args.test_without_interactions and not training:
+            x_nei = INIT_POSITION * torch.ones_like(x_nei)
+
         # Encode difference features (for ego agents)
         f_ego_diff, linear_fit, linear_base = self.linear(x_ego)
         x_ego_diff = x_ego - linear_fit
@@ -98,7 +107,8 @@ class ReverberationModel(Model):
             re_matrix, f_re = self.resonance(self.picker.get_center(x_ego)[..., :2],
                                              self.picker.get_center(x_nei)[..., :2])
 
-            re_rev_bias = self.re_rev(x_ego_diff, f_ego_diff, re_matrix, training)
+            re_rev_bias = self.re_rev(x_ego_diff, f_ego_diff,
+                                      re_matrix, training)
         else:
             re_rev_bias = 0
 
