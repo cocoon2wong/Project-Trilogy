@@ -2,7 +2,7 @@
 @Author: Conghao Wong
 @Date: 2024-12-11 19:19:54
 @LastEditors: Conghao Wong
-@LastEditTime: 2025-01-13 15:07:31
+@LastEditTime: 2025-01-15 15:25:02
 @Github: https://cocoon2wong.github.io
 @Copyright 2024 Conghao Wong, All Rights Reserved.
 """
@@ -29,7 +29,7 @@ class LinearDiffEncoding(torch.nn.Module):
                  encode_agent_types: bool | int = False,
                  *args, **kwargs) -> None:
 
-        super().__init__(*args, **kwargs)
+        super().__init__()
 
         self.d = output_units
         self.T_layer = transform_layer
@@ -121,7 +121,7 @@ class KernelLayer(torch.nn.Module):
                  output_units: int,
                  *args, **kwargs) -> None:
 
-        super().__init__(*args, **kwargs)
+        super().__init__()
 
         self.l1 = layers.Dense(input_units, hidden_units, torch.nn.ReLU)
         self.l2 = layers.Dense(hidden_units, hidden_units, torch.nn.ReLU)

@@ -2,17 +2,15 @@
 @Author: Conghao Wong
 @Date: 2024-12-12 10:02:19
 @LastEditors: Conghao Wong
-@LastEditTime: 2025-01-13 15:08:08
+@LastEditTime: 2025-01-15 15:18:53
 @Github: https://cocoon2wong.github.io
 @Copyright 2024 Conghao Wong, All Rights Reserved.
 """
 
 import torch
 
-from qpid.args import Args
 from qpid.model import layers, transformer
 
-from .__args import ReverberationArgs as RevArgs
 from .__layers import KernelLayer
 
 
@@ -32,29 +30,29 @@ class SelfReverberationLayer(torch.nn.Module):
       on each specific future frame (step).
     """
 
-    def __init__(self, Args: Args,
-                 traj_dim: int,
-                 input_feature_dim: int,
+    def __init__(self, input_feature_dim: int,
                  output_feature_dim: int,
+                 noise_depth: int,
+                 traj_channels: int,
+                 transform_layer: layers.transfroms._BaseTransformLayer,
+                 inverse_transform_layer: layers.transfroms._BaseTransformLayer,
+                 enable_lite_mode: int | bool = False,
                  *args, **kwargs) -> None:
 
-        super().__init__(*args, **kwargs)
+        super().__init__()
 
-        # Args
-        self.args = Args
-        self.rev_args = self.args.register_subargs(RevArgs, 'rev')
-
-        # Settings
-        self.d = output_feature_dim
+        # Variables and Settings
         self.d_i = input_feature_dim
-        self.d_traj = traj_dim
-        self.d_noise = self.args.noise_depth
+        self.d = output_feature_dim
+        self.d_noise = noise_depth
+
+        self.traj_channels = traj_channels
+        self.lite = enable_lite_mode
 
         # Layers
         # Transform layers
-        Ttype, iTtype = layers.get_transform_layers(self.rev_args.T)
-        self.Tlayer = Ttype((self.args.obs_frames, self.d_traj))
-        self.iTlayer = iTtype((self.args.pred_frames, self.d_traj))
+        self.Tlayer = transform_layer
+        self.iTlayer = inverse_transform_layer
 
         # Shapes
         self.Tsteps_en, self.Tchannels_en = self.Tlayer.Tshape
@@ -77,12 +75,12 @@ class SelfReverberationLayer(torch.nn.Module):
         )
 
         # FC layers for computing reverberation kernels
-        if not self.rev_args.lite:
-            self.k1 = KernelLayer(self.d, self.d, self.rev_args.Kc)
+        if not self.lite:
+            self.k1 = KernelLayer(self.d, self.d, self.traj_channels)
             self.k2 = KernelLayer(self.d, self.d, self.Tsteps_de)
 
         else:
-            self.k1 = layers.Dense(self.d, self.rev_args.Kc, torch.nn.Tanh)
+            self.k1 = layers.Dense(self.d, self.traj_channels, torch.nn.Tanh)
             self.k2 = layers.Dense(self.d, self.Tsteps_de, torch.nn.Tanh)
 
         self.outer = layers.OuterLayer(self.Tsteps_en, self.Tsteps_en)
@@ -90,6 +88,7 @@ class SelfReverberationLayer(torch.nn.Module):
 
     def forward(self, f_ego_diff: torch.Tensor,
                 linear_fit: torch.Tensor,
+                repeats: int = 1,
                 training=None, mask=None, *args, **kwargs):
 
         # Target values for queries
@@ -99,8 +98,6 @@ class SelfReverberationLayer(torch.nn.Module):
         f = f_ego_diff
 
         all_predictions = []
-        repeats = self.args.K_train if training else self.args.K
-
         for _ in range(repeats):
             # Assign random noise and embedding -> (batch, Tsteps, d/2)
             z = torch.normal(mean=0, std=1,
@@ -123,12 +120,6 @@ class SelfReverberationLayer(torch.nn.Module):
             k1 = self.k1(f_tran)        # (batch, Tsteps, Kc)
             k2 = self.k2(f_tran)        # (batch, Tsteps, Tsteps_de)
 
-            if self.rev_args.draw_kernels:
-                from .utils import show_kernel
-
-                show_kernel(k1, 'self_k1', 1, self.Tsteps_en, self.rev_args.Kc)
-                show_kernel(k2, 'self_k2', 1, self.Tsteps_en, self.Tsteps_de)
-
             # Apply k1
             f1 = f_o @ k1[..., None, :, :]    # (batch, d, Tsteps, Kc)
 
@@ -142,4 +133,4 @@ class SelfReverberationLayer(torch.nn.Module):
             all_predictions.append(y)
 
         # Stack random output -> (batch, K, n_key, dim)
-        return torch.concat(all_predictions, dim=-3)
+        return torch.concat(all_predictions, dim=-3), k1, k2

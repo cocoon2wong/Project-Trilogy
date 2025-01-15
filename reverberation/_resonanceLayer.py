@@ -2,7 +2,7 @@
 @Author: Conghao Wong
 @Date: 2024-12-11 20:00:42
 @LastEditors: Conghao Wong
-@LastEditTime: 2025-01-15 11:01:25
+@LastEditTime: 2025-01-15 15:19:05
 @Github: https://cocoon2wong.github.io
 @Copyright 2024 Conghao Wong, All Rights Reserved.
 """
@@ -10,11 +10,8 @@
 import numpy as np
 import torch
 
-from qpid.args import Args
 from qpid.model import layers
 from qpid.utils import get_mask
-
-from .__args import ReverberationArgs as RevArgs
 
 
 class ResonanceLayer(torch.nn.Module):
@@ -31,28 +28,25 @@ class ResonanceLayer(torch.nn.Module):
     that contains all temporal-spectral information.
     """
 
-    def __init__(self, Args: Args,
-                 traj_dim: int,
-                 hidden_feature_dim: int,
+    def __init__(self, hidden_feature_dim: int,
                  output_feature_dim: int,
+                 angle_partitions: int,
+                 transform_layer: layers.transfroms._BaseTransformLayer,
+                 enable_lite_mode: int | bool = False,
                  *args, **kwargs) -> None:
 
-        super().__init__(*args, **kwargs)
+        super().__init__()
 
-        # Args
-        self.args = Args
-        self.rev_args = self.args.register_subargs(RevArgs, 'rev')
-
-        # Settings
-        self.partitions = self.rev_args.partitions
+        # Variables and Settings
         self.d = output_feature_dim
         self.d_h = hidden_feature_dim
-        self.d_traj = traj_dim
+
+        self.p = angle_partitions
+        self.lite = enable_lite_mode
 
         # Layers
         # Transform layers
-        Ttype, _ = layers.get_transform_layers(self.rev_args.T)
-        self.Tlayer = Ttype((self.args.obs_frames, self.d_traj))
+        self.Tlayer = transform_layer
 
         # Shapes
         self.steps, self.channels = self.Tlayer.Oshape
@@ -67,7 +61,7 @@ class ResonanceLayer(torch.nn.Module):
         self.ce = layers.TrajEncoding(2, self.d//2, torch.nn.ReLU)
 
         # Encoding layers (for resonance features)
-        if not self.rev_args.lite:
+        if not self.lite:
             self.fc1 = layers.Dense(self.d_h, self.d_h, torch.nn.ReLU)
         else:
             self.fc1 = layers.Dense(self.d_h*self.Tsteps,
@@ -92,13 +86,13 @@ class ResonanceLayer(torch.nn.Module):
         # The `(obs)` or `(steps)` only exists when arg `lite` is disabled
         f = f_ego * f_nei   # -> (batch, N, obs, d)
 
-        if self.rev_args.lite:
+        if self.lite:
             f = torch.flatten(f, start_dim=-2, end_dim=-1)
 
         f_re = self.fc3(self.fc2(self.fc1(f)))
 
         # Compute positional information in a SocialCircle-like way
-        if not self.rev_args.lite:
+        if not self.lite:
             # Time-resolution of the used transform
             t_r = int(np.ceil(self.steps / self.Tsteps))
 
@@ -115,11 +109,11 @@ class ResonanceLayer(torch.nn.Module):
         f_angle = f_angle % (2 * np.pi)
 
         # Partitioning
-        partition_indices = f_angle / (2*np.pi/self.partitions)
+        partition_indices = f_angle / (2*np.pi/self.p)
         partition_indices = partition_indices.to(torch.int32)
 
         # Mask neighbors
-        if not self.rev_args.lite:
+        if not self.lite:
             # Compute resonance features on all steps and partitions
             nei_mask = get_mask(torch.sum(p_nei, dim=-1), torch.int32)
         else:
@@ -131,7 +125,7 @@ class ResonanceLayer(torch.nn.Module):
         final_mask = nei_mask * non_self_mask
 
         # Axis bias when computing
-        j = 0 if self.rev_args.lite else -1
+        j = 0 if self.lite else -1
 
         # Angle-based pooling
         pos_list: list[list[torch.Tensor]] = []
@@ -139,7 +133,7 @@ class ResonanceLayer(torch.nn.Module):
         partition_indices = (partition_indices * final_mask +
                              -1 * (1 - final_mask))
 
-        for _p in range(self.partitions):
+        for _p in range(self.p):
             _mask = (partition_indices == _p).to(torch.float32)
             _mask_count = torch.sum(_mask, dim=-1+j)
 
