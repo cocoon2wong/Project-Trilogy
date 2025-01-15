@@ -2,7 +2,7 @@
 @Author: Conghao Wong
 @Date: 2024-12-16 14:56:33
 @LastEditors: Conghao Wong
-@LastEditTime: 2025-01-13 15:08:34
+@LastEditTime: 2025-01-15 10:36:06
 @Github: https://cocoon2wong.github.io
 @Copyright 2024 Conghao Wong, All Rights Reserved.
 """
@@ -32,8 +32,7 @@ class SocialReverberationLayer(torch.nn.Module):
       historical frame (step) has made when planning future trajectories and 
       social behaviors on each specific future frame (step).
 
-    *NOTE* that the layer's behaviors may change according to
-    the arg `full_steps`.
+    *NOTE* that the layer's behaviors may change according to the arg `lite`.
     """
 
     def __init__(self, Args: Args,
@@ -67,7 +66,7 @@ class SocialReverberationLayer(torch.nn.Module):
         self.Tsteps_en, self.Tchannels_en = self.Tlayer.Tshape
         self.Tsteps_de, self.Tchannels_de = self.iTlayer.Tshape
 
-        if self.rev_args.full_steps:
+        if not self.rev_args.lite:
             self.steps = self.Tsteps_en * self.p
         else:
             self.steps = max(self.Tsteps_en, self.p)
@@ -111,7 +110,7 @@ class SocialReverberationLayer(torch.nn.Module):
                 training=None, mask=None, *args, **kwargs):
 
         # Pad features to keep the compatible tensor shape
-        if self.rev_args.full_steps:
+        if not self.rev_args.lite:
             f_diff_pad = torch.repeat_interleave(f_ego_diff, self.p, -2)
             f_re_pad = torch.flatten(re_matrix, -3, -2)
         else:
@@ -119,8 +118,8 @@ class SocialReverberationLayer(torch.nn.Module):
             f_re_pad = pad(re_matrix, self.steps)
 
         # Concat and fuse resonance matrices with trajectory features
-        # -> (batch, steps, d) (when `full_steps` is disabled)
-        # -> (batch, steps*partitions, d) (when `full_steps` is enabled)
+        # -> (batch, steps, d) (when `lite` is enabled)
+        # -> (batch, steps*partitions, d) (when `lite` is disabled)
         f_behavior = torch.concat([f_diff_pad, f_re_pad], dim=-1)
         f_behavior = self.concat_fc(f_behavior)
 
@@ -129,7 +128,7 @@ class SocialReverberationLayer(torch.nn.Module):
 
         # Target value for queries
         traj_targets = self.Tlayer(x_ego_diff)
-        if self.rev_args.full_steps:
+        if not self.rev_args.lite:
             traj_targets = torch.repeat_interleave(traj_targets, self.p, -2)
         else:
             traj_targets = pad(traj_targets, self.steps)

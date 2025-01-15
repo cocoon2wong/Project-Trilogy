@@ -2,7 +2,7 @@
 @Author: Conghao Wong
 @Date: 2024-12-11 20:00:42
 @LastEditors: Conghao Wong
-@LastEditTime: 2024-12-30 20:57:01
+@LastEditTime: 2025-01-15 11:01:25
 @Github: https://cocoon2wong.github.io
 @Copyright 2024 Conghao Wong, All Rights Reserved.
 """
@@ -25,9 +25,9 @@ class ResonanceLayer(torch.nn.Module):
     the ego agent and all other neighboring agents. An angle-based pooling will
     be applied to gather these spectral similarities within limited angle-based
     partitions.
-    *NOTE*: Arg `full_steps` may change how it behaves. It will compute the
+    *NOTE*: Arg `lite` may change how it behaves. It will compute the
     spectral similarities on each temporal step (with specific temporal
-    resolutions) when this arg is enabled, otherwise on a flattened feature
+    resolutions) when this arg is disabled, otherwise on a flattened feature
     that contains all temporal-spectral information.
     """
 
@@ -67,7 +67,7 @@ class ResonanceLayer(torch.nn.Module):
         self.ce = layers.TrajEncoding(2, self.d//2, torch.nn.ReLU)
 
         # Encoding layers (for resonance features)
-        if self.rev_args.full_steps:
+        if not self.rev_args.lite:
             self.fc1 = layers.Dense(self.d_h, self.d_h, torch.nn.ReLU)
         else:
             self.fc1 = layers.Dense(self.d_h*self.Tsteps,
@@ -89,17 +89,16 @@ class ResonanceLayer(torch.nn.Module):
 
         # Compute meta resonance features (for each neighbor)
         # Shape of the final output `f_re`: (batch, N, (obs), d/2)
-        # The `(obs)` or `(steps)` dimension only exists when the arg
-        # `full_steps` is enabled
+        # The `(obs)` or `(steps)` only exists when arg `lite` is disabled
         f = f_ego * f_nei   # -> (batch, N, obs, d)
 
-        if not self.rev_args.full_steps:
+        if self.rev_args.lite:
             f = torch.flatten(f, start_dim=-2, end_dim=-1)
 
         f_re = self.fc3(self.fc2(self.fc1(f)))
 
         # Compute positional information in a SocialCircle-like way
-        if self.rev_args.full_steps:
+        if not self.rev_args.lite:
             # Time-resolution of the used transform
             t_r = int(np.ceil(self.steps / self.Tsteps))
 
@@ -120,23 +119,26 @@ class ResonanceLayer(torch.nn.Module):
         partition_indices = partition_indices.to(torch.int32)
 
         # Mask neighbors
-        if self.rev_args.full_steps:
-            # Remove egos from neighbors (the self-neighbors)
-            valid_nei_mask = get_mask(torch.sum(p_nei, dim=-1), torch.int32)
-            non_self_mask = (f_distance > 0.005).to(torch.int32)
-            final_mask = valid_nei_mask * non_self_mask
-            j = -1      # Axis bias
+        if not self.rev_args.lite:
+            # Compute resonance features on all steps and partitions
+            nei_mask = get_mask(torch.sum(p_nei, dim=-1), torch.int32)
         else:
-            final_mask = get_mask(torch.sum(x_nei_2d, dim=[-1, -2]),
-                                  torch.int32)
-            j = 0
+            # Compute resonance features during the whole period
+            nei_mask = get_mask(torch.sum(x_nei_2d, dim=[-1, -2]), torch.int32)
 
-        partition_indices = (partition_indices * final_mask +
-                             -1 * (1 - final_mask))
+        # Remove egos from neighbors (the self-neighbors)
+        non_self_mask = (f_distance > 0.005).to(torch.int32)
+        final_mask = nei_mask * non_self_mask
+
+        # Axis bias when computing
+        j = 0 if self.rev_args.lite else -1
 
         # Angle-based pooling
         pos_list: list[list[torch.Tensor]] = []
         re_list: list[torch.Tensor] = []
+        partition_indices = (partition_indices * final_mask +
+                             -1 * (1 - final_mask))
+
         for _p in range(self.partitions):
             _mask = (partition_indices == _p).to(torch.float32)
             _mask_count = torch.sum(_mask, dim=-1+j)

@@ -2,7 +2,7 @@
 @Author: Conghao Wong
 @Date: 2024-12-05 15:17:31
 @LastEditors: Conghao Wong
-@LastEditTime: 2025-01-13 16:11:40
+@LastEditTime: 2025-01-15 10:42:10
 @Github: https://cocoon2wong.github.io
 @Copyright 2024 Conghao Wong, All Rights Reserved.
 """
@@ -33,17 +33,16 @@ class ReverberationModel(Model):
         self.args._set('output_pred_steps', 'all')
         self.rev_args = self.args.register_subargs(ReverberationArgs, 'rev')
 
-        if self.args.model in ['rev2', 'rev3']:
-            self.rev_args._set('full_steps', 1)
-
-        if self.args.model != 'rev3':
-            self.rev_args._set('lite', 1)
-
-        self.args._set('model', 'rev')
-
         # Set model inputs
-        self.set_inputs(INPUT_TYPES.OBSERVED_TRAJ,
-                        INPUT_TYPES.NEIGHBOR_TRAJ)
+        # Types of agents are only used in complex scenes
+        # For other datasets, keep it disabled (through the arg)
+        if not self.rev_args.encode_agent_types:
+            self.set_inputs(INPUT_TYPES.OBSERVED_TRAJ,
+                            INPUT_TYPES.NEIGHBOR_TRAJ)
+        else:
+            self.set_inputs(INPUT_TYPES.OBSERVED_TRAJ,
+                            INPUT_TYPES.NEIGHBOR_TRAJ,
+                            INPUT_TYPES.AGENT_TYPES)
 
         # Layers
         # Transform layers
@@ -57,6 +56,7 @@ class ReverberationModel(Model):
             pred_frames=self.args.pred_frames,
             output_units=self.d//2,
             transform_layer=self.tlayer,
+            encode_agent_types=self.rev_args.encode_agent_types,
         )
 
         if self.rev_args.compute_self_bias:
@@ -91,21 +91,32 @@ class ReverberationModel(Model):
         x_ego = self.get_input(inputs, INPUT_TYPES.OBSERVED_TRAJ)
         x_nei = self.get_input(inputs, INPUT_TYPES.NEIGHBOR_TRAJ)
 
-        if self.rev_args.test_without_interactions and not training:
+        if self.rev_args.no_interaction and not training:
             x_nei = INIT_POSITION * torch.ones_like(x_nei)
 
+        if self.rev_args.encode_agent_types:
+            agent_types = self.get_input(inputs, INPUT_TYPES.AGENT_TYPES)
+        else:
+            agent_types = None
+
         # Encode difference features (for ego agents)
-        f_ego_diff, linear_fit, linear_base = self.linear(x_ego)
+        f_ego_diff, linear_fit, linear_base = self.linear(x_ego, agent_types)
         x_ego_diff = x_ego - linear_fit
 
+        # The linear base
+        if self.rev_args.compute_linear_base and not self.rev_args.no_linear_base:
+            linear_base = linear_base[..., None, :, :]
+        else:
+            linear_base = 0
+
         # Compute self-reverberation-bias
-        if self.rev_args.compute_self_bias and self.rev_args.test_with_self_bias:
+        if self.rev_args.compute_self_bias and not self.rev_args.no_self_bias:
             self_rev_bias = self.self_rev(f_ego_diff, x_ego_diff, training)
         else:
             self_rev_bias = 0
 
         # Compute re-reverberation-bias
-        if self.rev_args.compute_re_bias and self.rev_args.test_with_re_bias:
+        if self.rev_args.compute_re_bias and not self.rev_args.no_re_bias:
             re_matrix, f_re = self.resonance(self.picker.get_center(x_ego)[..., :2],
                                              self.picker.get_center(x_nei)[..., :2])
 
@@ -114,12 +125,7 @@ class ReverberationModel(Model):
         else:
             re_rev_bias = 0
 
-        if self.rev_args.compute_linear_base and self.rev_args.test_with_linear_base:
-            y = linear_base[..., None, :, :]
-        else:
-            y = 0
-
-        return y + self_rev_bias + re_rev_bias
+        return linear_base + self_rev_bias + re_rev_bias
 
 
 class Reverberation(Structure):

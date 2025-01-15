@@ -2,7 +2,7 @@
 @Author: Conghao Wong
 @Date: 2024-12-05 15:14:02
 @LastEditors: Conghao Wong
-@LastEditTime: 2025-01-13 15:06:42
+@LastEditTime: 2025-01-15 10:47:42
 @Github: https://cocoon2wong.github.io
 @Copyright 2024 Conghao Wong, All Rights Reserved.
 """
@@ -21,6 +21,14 @@ class ReverberationArgs(EmptyArgs):
                          desc_in_model_summary='Output channels')
 
     @property
+    def partitions(self) -> int:
+        """
+        The number of partitions when computing the angle-based feature.
+        """
+        return self._arg('partitions', -1, argtype=STATIC,
+                         desc_in_model_summary='Number of Angle-based Partitions')
+
+    @property
     def T(self) -> str:
         """
         Transform type used to compute trajectory spectrums.
@@ -32,6 +40,25 @@ class ReverberationArgs(EmptyArgs):
         """
         return self._arg('T', 'haar', argtype=STATIC, short_name='T',
                          desc_in_model_summary='Transform type')
+
+    @property
+    def no_interaction(self) -> int:
+        """
+        Whether to forecast trajectories by considering social interactions.
+        It will compute all social-interaction-related components on the set
+        of empty neighbors if this args is set to `1`.
+        """
+        return self._arg('test_without_interactions', 0, argtype=TEMPORARY)
+
+    @property
+    def encode_agent_types(self) -> int:
+        """
+        Choose whether to encode the type name of each agent.
+        It is mainly used in multi-type-agent prediction scenes, providing
+        a unique type-coding for each type of agents when encoding their
+        trajectories.
+        """
+        return self._arg('encode_agent_types', 0, argtype=STATIC)
 
     @property
     def compute_linear_base(self) -> int:
@@ -47,6 +74,7 @@ class ReverberationArgs(EmptyArgs):
         Whether to learn to forecast the self-bias during training.
         """
         return self._arg('compute_self_bias', 1, argtype=STATIC,
+                         other_names=['learn_self_bias'],
                          desc_in_model_summary='Learn self-bias')
 
     @property
@@ -55,54 +83,46 @@ class ReverberationArgs(EmptyArgs):
         Whether to learn to forecast the re-bias during training.
         """
         return self._arg('compute_re_bias', 1, argtype=STATIC,
+                         other_names=['learn_re_bias'],
                          desc_in_model_summary='Learn re-bias')
-
-    @property
-    def test_with_linear_base(self) -> int:
-        """
-        Whether to forecast the linear base when *testing* the model.
-        """
-        return self._arg('test_with_linear_base', 1, argtype=TEMPORARY)
-
-    @property
-    def test_with_self_bias(self) -> int:
-        """
-        Whether to forecast the self-bias when *testing* the model.
-        """
-        return self._arg('test_with_self_bias', 1, argtype=TEMPORARY)
-
-    @property
-    def test_with_re_bias(self) -> int:
-        """
-        Whether to forecast the re-bias when *testing* the model.
-        """
-        return self._arg('test_with_re_bias', 1, argtype=TEMPORARY)
-
-    @property
-    def test_without_interactions(self) -> int:
-        """
-        Whether to forecast trajectories by considering social interactions.
-        It will compute all social-interaction-related components on the set
-        of empty neighbors if this args is set to `1`.
-        """
-        return self._arg('test_without_interactions', 0, argtype=TEMPORARY)
 
     @property
     def lite(self) -> int:
         """
         It controls whether to implement the full reverberation kernel on all
         historical steps and angle-based partitions or the simplified shared-
-        steps.
+        steps. Simultaneously, the model will compute all angle-based social
+        partitions on a flattened feature rather than all observation frames,
+        which may further reduce the computation consumptions. This arg is
+        typically used to obtain a model variation with faster computation
+        and smaller model size, reducing prediction performance as a compromise.
         """
-        return self._arg('lite', 0, argtype=STATIC)
+        return self._arg('lite', 0, argtype=STATIC,
+                         desc_in_model_summary='Lite mode')
 
     @property
-    def partitions(self) -> int:
+    def no_linear_base(self) -> int:
         """
-        The number of partitions when computing the angle-based feature.
+        Ignoring the linear base term when forecasting.
+        It only works when testing.
         """
-        return self._arg('partitions', -1, argtype=STATIC,
-                         desc_in_model_summary='Number of Angle-based Partitions')
+        return self._arg('no_linear_base', 0, argtype=TEMPORARY)
+
+    @property
+    def no_self_bias(self) -> int:
+        """
+        Ignoring the self-bias term when forecasting.
+        It only works when testing.
+        """
+        return self._arg('no_self_bias', 0, argtype=TEMPORARY)
+
+    @property
+    def no_re_bias(self) -> int:
+        """
+        Ignoring the resonance-bias term when forecasting.
+        It only works when testing.
+        """
+        return self._arg('no_re_bias', 0, argtype=TEMPORARY)
 
     @property
     def draw_kernels(self) -> int:
@@ -111,16 +131,6 @@ class ReverberationArgs(EmptyArgs):
         It is typically used in the playground mode.
         """
         return self._arg('draw_kernels', 0, argtype=TEMPORARY)
-
-    @property
-    def full_steps(self) -> int:
-        """
-        Choose whether to compute all angle-based social partitions on all
-        observation frames or just on a flattened feature.
-        It may bring extra computation consumptions when this term is enabled.
-        """
-        return self._arg('full_steps', 0, argtype=STATIC,
-                         desc_in_model_summary='Use full reverberation kernels')
 
     def _init_all_args(self):
         super()._init_all_args()
