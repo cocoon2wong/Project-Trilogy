@@ -2,7 +2,7 @@
 @Author: Conghao Wong
 @Date: 2024-12-12 10:02:19
 @LastEditors: Conghao Wong
-@LastEditTime: 2025-01-15 15:18:53
+@LastEditTime: 2025-02-17 09:17:58
 @Github: https://cocoon2wong.github.io
 @Copyright 2024 Conghao Wong, All Rights Reserved.
 """
@@ -23,7 +23,7 @@ class SelfReverberationLayer(torch.nn.Module):
     Two reverberation kernels will be computed to weighted sum historical
     features to *wiring* past information into the future:
 
-    - **Self-Generation kernel**: Weighted sum features in different styles to
+    - **Self-generating kernel**: Weighted sum features in different styles to
       achieve the random/characterized/multi-style prediction goal;
     - **Self-reverberation kernel**: Evaluate how much contribution that each
       historical frame (step) has made when planning future trajectories

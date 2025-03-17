@@ -2,7 +2,7 @@
 @Author: Conghao Wong
 @Date: 2024-12-05 15:17:31
 @LastEditors: Conghao Wong
-@LastEditTime: 2025-01-15 15:22:43
+@LastEditTime: 2025-03-17 14:49:48
 @Github: https://cocoon2wong.github.io
 @Copyright 2024 Conghao Wong, All Rights Reserved.
 """
@@ -17,7 +17,7 @@ from qpid.training import Structure
 from qpid.utils import INIT_POSITION
 
 from .__args import ReverberationArgs
-from .__layers import LinearDiffEncoding
+from .__layers import LinearDiffEncoding, compute_inverse_kernel
 from ._resonanceLayer import ResonanceLayer
 from ._selfReverberation import SelfReverberationLayer
 from ._socialReverberation import SocialReverberationLayer
@@ -156,15 +156,28 @@ class ReverberationModel(Model):
                 None not in [self_k1, self_k2, re_k1, re_k2]):
             from .utils import show_kernel
 
+            inv_self_k2 = compute_inverse_kernel(self_k2)
+            inv_re_k2 = compute_inverse_kernel(re_k2)
+            [steps_en, steps_de] = [self.self_rev.Tsteps_en, self.self_rev.Tsteps_de]
+
             # Self-Reverberation kernels
-            show_kernel(self_k1, 'self-1', 1, self.Tsteps_en, self.rev_args.Kc)
-            show_kernel(self_k2, 'self-2', 1, self.Tsteps_en, self.Tsteps_de)
+            # show_kernel(self_k1, 'Self-Generating',
+            #             1, steps_en, self.rev_args.Kc)
+            show_kernel(self_k2, 'Self-Reverberation',
+                        1, steps_en, steps_de)
+            show_kernel(inv_self_k2, 'I-Self-Reverberation',
+                        1, steps_de, steps_en)
 
             # Social-Reverberation kernels
-            show_kernel(re_k1, 'social-1', self.rev_args.partitions,
-                        self.Tsteps_en, self.rev_args.Kc)
-            show_kernel(re_k2, 'social-2', self.rev_args.partitions,
-                        self.Tsteps_en, self.Tsteps_de)
+            # show_kernel(re_k1, 'Social-Generating',
+            #             self.rev_args.partitions,
+            #             steps_en, self.rev_args.Kc)
+            show_kernel(re_k2, 'Social-Reverberation',
+                        self.rev_args.partitions,
+                        steps_en, steps_de)
+            show_kernel(inv_re_k2, 'I-Social-Reverberation',
+                        self.rev_args.partitions,
+                        steps_de, steps_en)
 
         return linear_base + self_rev_bias + re_rev_bias
 

@@ -2,7 +2,7 @@
 @Author: Conghao Wong
 @Date: 2024-12-16 14:56:33
 @LastEditors: Conghao Wong
-@LastEditTime: 2025-01-15 15:18:38
+@LastEditTime: 2025-03-17 15:02:08
 @Github: https://cocoon2wong.github.io
 @Copyright 2024 Conghao Wong, All Rights Reserved.
 """
@@ -24,7 +24,7 @@ class SocialReverberationLayer(torch.nn.Module):
     computed to weighted sum historical features to *wiring* past information
     into the future:
 
-    - **Social-Generation kernel**: Weighted sum features in different styles to
+    - **Social-Generating kernel**: Weighted sum features in different styles to
       achieve the random/characterized/multi-style social behavior prediction;
     - **Social-reverberation kernel**: Evaluate how much contribution that each
       historical frame (step) has made when planning future trajectories and 
