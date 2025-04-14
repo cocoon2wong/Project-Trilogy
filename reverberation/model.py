@@ -2,7 +2,7 @@
 @Author: Conghao Wong
 @Date: 2024-12-05 15:17:31
 @LastEditors: Conghao Wong
-@LastEditTime: 2025-03-17 14:49:48
+@LastEditTime: 2025-04-14 18:06:44
 @Github: https://cocoon2wong.github.io
 @Copyright 2024 Conghao Wong, All Rights Reserved.
 """
@@ -19,8 +19,8 @@ from qpid.utils import INIT_POSITION
 from .__args import ReverberationArgs
 from .__layers import LinearDiffEncoding, compute_inverse_kernel
 from ._resonanceLayer import ResonanceLayer
-from ._selfReverberation import SelfReverberationLayer
-from ._socialReverberation import SocialReverberationLayer
+from ._selfReverberation import NonInteractiveRevLayer
+from ._socialReverberation import SocialRevLayer
 
 
 class ReverberationModel(Model):
@@ -71,24 +71,24 @@ class ReverberationModel(Model):
             **settings,
         )
 
-        if self.rev_args.compute_self_bias:
-            # Self-reverberation layer
-            self.self_rev = SelfReverberationLayer(
+        if self.rev_args.compute_noninteractive:
+            # Non-interactive reverberation layer
+            self.self_rev = NonInteractiveRevLayer(
                 input_feature_dim=self.d//2,
                 output_feature_dim=self.d,
                 **settings,
             )
 
-        if self.rev_args.compute_re_bias:
-            # Resonance feature
+        if self.rev_args.compute_social:
+            # Resonance feature (social-interaction-modeling)
             self.resonance = ResonanceLayer(
                 hidden_feature_dim=self.d,
                 output_feature_dim=self.d//2,
                 **settings,
             )
 
-            # Re-reverberation layer
-            self.re_rev = SocialReverberationLayer(
+            # Social reverberation layer
+            self.re_rev = SocialRevLayer(
                 input_ego_feature_dim=self.d//2,
                 input_re_feature_dim=self.d//2,
                 output_feature_dim=self.d,
@@ -115,32 +115,32 @@ class ReverberationModel(Model):
         # Times of multiple generations
         repeats = self.args.K_train if training else self.args.K
 
-        # -----------
-        # Linear Base
-        # -----------
-        # Encode difference features (for ego agents)
+        # -----------------
+        # Linear Trajectory
+        # -----------------
+        # Linear prediction (least squares) && Encode difference features (for ego agents)
         f_ego_diff, linear_fit, linear_base = self.linear(x_ego, agent_types)
         x_ego_diff = x_ego - linear_fit
 
-        # The linear base
-        if self.rev_args.compute_linear_base and not self.rev_args.no_linear_base:
+        # The linear trajectory
+        if self.rev_args.compute_linear and not self.rev_args.no_linear_base:
             linear_base = linear_base[..., None, :, :]
         else:
             linear_base = 0
 
-        # -----------------------
-        # Self-Reverberation-Bias
-        # -----------------------
-        if self.rev_args.compute_self_bias and not self.rev_args.no_self_bias:
+        # --------------------------
+        # Non-interactive Prediction
+        # --------------------------
+        if self.rev_args.compute_noninteractive and not self.rev_args.no_self_bias:
             self_rev_bias, self_k1, self_k2 = self.self_rev(
                 f_ego_diff, x_ego_diff, repeats, training)
         else:
             self_rev_bias, self_k1, self_k2 = [0, None, None]
 
-        # -------------------------
-        # Social-Reverberation-Bias
-        # -------------------------
-        if self.rev_args.compute_re_bias and not self.rev_args.no_re_bias:
+        # -----------------
+        # Social Prediction
+        # -----------------
+        if self.rev_args.compute_social and not self.rev_args.no_re_bias:
             re_matrix, f_re = self.resonance(self.picker.get_center(x_ego)[..., :2],
                                              self.picker.get_center(x_nei)[..., :2])
 
@@ -150,7 +150,7 @@ class ReverberationModel(Model):
             re_rev_bias, re_k1, re_k2 = [0, None, None]
 
         # ----------------------------------
-        # Reverberation-Kernel-Visualization
+        # Reverberation-Kernel Visualization
         # ----------------------------------
         if (self.rev_args.draw_kernels and
                 None not in [self_k1, self_k2, re_k1, re_k2]):

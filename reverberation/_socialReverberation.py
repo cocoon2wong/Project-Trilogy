@@ -14,7 +14,7 @@ from qpid.model import layers, transformer
 from .__layers import KernelLayer
 
 
-class SocialReverberationLayer(torch.nn.Module):
+class SocialRevLayer(torch.nn.Module):
     """
     Social-Reverberation Layer
     ---

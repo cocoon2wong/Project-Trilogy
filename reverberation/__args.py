@@ -2,7 +2,7 @@
 @Author: Conghao Wong
 @Date: 2024-12-05 15:14:02
 @LastEditors: Conghao Wong
-@LastEditTime: 2025-01-15 15:43:36
+@LastEditTime: 2025-04-14 18:10:50
 @Github: https://cocoon2wong.github.io
 @Copyright 2024 Conghao Wong, All Rights Reserved.
 """
@@ -61,30 +61,34 @@ class ReverberationArgs(EmptyArgs):
         return self._arg('encode_agent_types', 0, argtype=STATIC)
 
     @property
-    def compute_linear_base(self) -> int:
+    def compute_linear(self) -> int:
         """
-        Whether to learn to forecast the linear base during training.
+        Whether to learn to forecast the linear trajectory during training.
         """
-        return self._arg('compute_linear_base', 1, argtype=STATIC,
-                         desc_in_model_summary='Train with linear base')
+        return self._arg('compute_linear', 1, argtype=STATIC,
+                         other_names=['compute_linear_base'],
+                         desc_in_model_summary='Train with linear trajectory')
 
     @property
-    def compute_self_bias(self) -> int:
+    def compute_noninteractive(self) -> int:
         """
-        Whether to learn to forecast the self-bias during training.
+        Whether to learn to forecast the non-interactive trajectory during training.
         """
-        return self._arg('compute_self_bias', 1, argtype=STATIC,
-                         other_names=['learn_self_bias'],
-                         desc_in_model_summary='Learn self-bias')
+        return self._arg('compute_noninteractive', 1, argtype=STATIC,
+                         other_names=['learn_self_bias',
+                                      'compute_self_bias',
+                                      'compute_non'],
+                         desc_in_model_summary='Learn non-interactive latency')
 
     @property
-    def compute_re_bias(self) -> int:
+    def compute_social(self) -> int:
         """
-        Whether to learn to forecast the re-bias during training.
+        Whether to learn to forecast the social trajectory during training.
         """
-        return self._arg('compute_re_bias', 1, argtype=STATIC,
-                         other_names=['learn_re_bias'],
-                         desc_in_model_summary='Learn re-bias')
+        return self._arg('compute_social', 1, argtype=STATIC,
+                         other_names=['learn_re_bias',
+                                      'compute_re_bias'],
+                         desc_in_model_summary='Learn social latency')
 
     @property
     def lite(self) -> int:

@@ -14,20 +14,20 @@ from qpid.model import layers, transformer
 from .__layers import KernelLayer
 
 
-class SelfReverberationLayer(torch.nn.Module):
+class NonInteractiveRevLayer(torch.nn.Module):
     """
-    Self-Reverberation Layer
+    Non-Interactive Reverberation Layer
     ---
     Forecast the *self-decided* future trajectories only according to the
     observed trajectories of ego agents themselves.
     Two reverberation kernels will be computed to weighted sum historical
     features to *wiring* past information into the future:
 
-    - **Self-generating kernel**: Weighted sum features in different styles to
-      achieve the random/characterized/multi-style prediction goal;
-    - **Self-reverberation kernel**: Evaluate how much contribution that each
-      historical frame (step) has made when planning future trajectories
-      on each specific future frame (step).
+    - **Non-interactive-generating kernel**: Weighted sum features in different
+      styles to achieve the random/characterized/multi-style prediction goal;
+    - **Non-interactive-reverberation kernel**: Evaluate how much contribution
+      hat each historical frame (step) has made when planning future
+      trajectories on each specific future frame (step).
     """
 
     def __init__(self, input_feature_dim: int,
