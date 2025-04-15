@@ -2,7 +2,7 @@
 @Author: Conghao Wong
 @Date: 2024-12-05 15:14:02
 @LastEditors: Conghao Wong
-@LastEditTime: 2025-04-14 18:10:50
+@LastEditTime: 2025-04-15 14:58:10
 @Github: https://cocoon2wong.github.io
 @Copyright 2024 Conghao Wong, All Rights Reserved.
 """
@@ -89,6 +89,26 @@ class ReverberationArgs(EmptyArgs):
                          other_names=['learn_re_bias',
                                       'compute_re_bias'],
                          desc_in_model_summary='Learn social latency')
+    
+    @property
+    def disable_G(self) -> int:
+        """
+        Whether to disable the generating kernels when appling reverberation
+        transforms. An MSN-like generating approach will be used if this arg
+        is set to `1`.
+        """
+        return self._arg('disable_G', 0, argtype=STATIC,
+                         desc_in_model_summary='Disable generating kernels')
+    
+    @property
+    def disable_R(self) -> int:
+        """
+        Whether to disable the reverberation kernels when appling reverberation
+        transforms. The flatten and fc layers will be used if this arg is set
+        to `1`.
+        """
+        return self._arg('disable_R', 0, argtype=STATIC,
+                         desc_in_model_summary='Disable reverberation kernels')
 
     @property
     def lite(self) -> int:

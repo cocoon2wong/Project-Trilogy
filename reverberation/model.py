@@ -2,7 +2,7 @@
 @Author: Conghao Wong
 @Date: 2024-12-05 15:17:31
 @LastEditors: Conghao Wong
-@LastEditTime: 2025-04-14 18:06:44
+@LastEditTime: 2025-04-15 15:33:02
 @Github: https://cocoon2wong.github.io
 @Copyright 2024 Conghao Wong, All Rights Reserved.
 """
@@ -18,9 +18,9 @@ from qpid.utils import INIT_POSITION
 
 from .__args import ReverberationArgs
 from .__layers import LinearDiffEncoding, compute_inverse_kernel
+from ._nonInteractiveRev import NonInteractiveRevLayer
 from ._resonanceLayer import ResonanceLayer
-from ._selfReverberation import NonInteractiveRevLayer
-from ._socialReverberation import SocialRevLayer
+from ._socialRev import SocialRevLayer
 
 
 class ReverberationModel(Model):
@@ -55,12 +55,14 @@ class ReverberationModel(Model):
         # Common settings for all layers (subnetworks)
         settings: dict[str, Any] = dict(
             noise_depth=self.args.noise_depth,
-            traj_channels=self.rev_args.Kc,
+            traj_generations=self.rev_args.Kc,
             angle_partitions=self.rev_args.partitions,
             transform_layer=self.tlayer,
             inverse_transform_layer=self.itlayer,
             enable_lite_mode=self.rev_args.lite,
             encode_agent_types=self.rev_args.encode_agent_types,
+            disable_G=self.rev_args.disable_G,
+            disable_R=self.rev_args.disable_R,
         )
 
         # Linear difference encoding

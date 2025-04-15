@@ -2,7 +2,7 @@
 @Author: Conghao Wong
 @Date: 2024-12-16 14:56:33
 @LastEditors: Conghao Wong
-@LastEditTime: 2025-03-17 15:02:08
+@LastEditTime: 2025-04-15 15:34:00
 @Github: https://cocoon2wong.github.io
 @Copyright 2024 Conghao Wong, All Rights Reserved.
 """
@@ -38,7 +38,7 @@ class SocialRevLayer(torch.nn.Module):
                  output_feature_dim: int,
                  angle_partitions: int,
                  noise_depth: int,
-                 traj_channels: int,
+                 traj_generations: int,
                  transform_layer: layers.transfroms._BaseTransformLayer,
                  inverse_transform_layer: layers.transfroms._BaseTransformLayer,
                  enable_lite_mode: int | bool = False,
@@ -52,7 +52,7 @@ class SocialRevLayer(torch.nn.Module):
         self.d = output_feature_dim
         self.d_noise = noise_depth
 
-        self.traj_channels = traj_channels
+        self.traj_channels = traj_generations
         self.p = angle_partitions
         self.lite = enable_lite_mode
 

@@ -2,7 +2,7 @@
 @Author: Conghao Wong
 @Date: 2024-12-12 10:02:19
 @LastEditors: Conghao Wong
-@LastEditTime: 2025-02-17 09:17:58
+@LastEditTime: 2025-04-15 16:12:11
 @Github: https://cocoon2wong.github.io
 @Copyright 2024 Conghao Wong, All Rights Reserved.
 """
@@ -33,7 +33,7 @@ class NonInteractiveRevLayer(torch.nn.Module):
     def __init__(self, input_feature_dim: int,
                  output_feature_dim: int,
                  noise_depth: int,
-                 traj_channels: int,
+                 traj_generations: int,
                  transform_layer: layers.transfroms._BaseTransformLayer,
                  inverse_transform_layer: layers.transfroms._BaseTransformLayer,
                  enable_lite_mode: int | bool = False,
@@ -46,7 +46,7 @@ class NonInteractiveRevLayer(torch.nn.Module):
         self.d = output_feature_dim
         self.d_noise = noise_depth
 
-        self.traj_channels = traj_channels
+        self.traj_channels = traj_generations
         self.lite = enable_lite_mode
 
         # Layers
