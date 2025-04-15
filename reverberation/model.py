@@ -2,7 +2,7 @@
 @Author: Conghao Wong
 @Date: 2024-12-05 15:17:31
 @LastEditors: Conghao Wong
-@LastEditTime: 2025-04-15 15:33:02
+@LastEditTime: 2025-04-15 20:22:39
 @Github: https://cocoon2wong.github.io
 @Copyright 2024 Conghao Wong, All Rights Reserved.
 """
@@ -18,9 +18,9 @@ from qpid.utils import INIT_POSITION
 
 from .__args import ReverberationArgs
 from .__layers import LinearDiffEncoding, compute_inverse_kernel
-from ._nonInteractiveRev import NonInteractiveRevLayer
+from ._nonInteractivePrediction import NonInteractivePrediction
 from ._resonanceLayer import ResonanceLayer
-from ._socialRev import SocialRevLayer
+from ._socialPrediction import SocialPrediction
 
 
 class ReverberationModel(Model):
@@ -74,8 +74,8 @@ class ReverberationModel(Model):
         )
 
         if self.rev_args.compute_noninteractive:
-            # Non-interactive reverberation layer
-            self.self_rev = NonInteractiveRevLayer(
+            # Non-interactive prediction layer
+            self.self_rev = NonInteractivePrediction(
                 input_feature_dim=self.d//2,
                 output_feature_dim=self.d,
                 **settings,
@@ -89,8 +89,8 @@ class ReverberationModel(Model):
                 **settings,
             )
 
-            # Social reverberation layer
-            self.re_rev = SocialRevLayer(
+            # Social prediction layer
+            self.re_rev = SocialPrediction(
                 input_ego_feature_dim=self.d//2,
                 input_re_feature_dim=self.d//2,
                 output_feature_dim=self.d,
@@ -121,23 +121,23 @@ class ReverberationModel(Model):
         # Linear Trajectory
         # -----------------
         # Linear prediction (least squares) && Encode difference features (for ego agents)
-        f_ego_diff, linear_fit, linear_base = self.linear(x_ego, agent_types)
+        f_ego_diff, linear_fit, linear_pred = self.linear(x_ego, agent_types)
         x_ego_diff = x_ego - linear_fit
 
         # The linear trajectory
         if self.rev_args.compute_linear and not self.rev_args.no_linear_base:
-            linear_base = linear_base[..., None, :, :]
+            linear_pred = linear_pred[..., None, :, :]
         else:
-            linear_base = 0
+            linear_pred = 0
 
         # --------------------------
         # Non-interactive Prediction
         # --------------------------
         if self.rev_args.compute_noninteractive and not self.rev_args.no_self_bias:
-            self_rev_bias, self_k1, self_k2 = self.self_rev(
+            non_interactive_pred, G_non, R_non = self.self_rev(
                 f_ego_diff, x_ego_diff, repeats, training)
         else:
-            self_rev_bias, self_k1, self_k2 = [0, None, None]
+            non_interactive_pred, G_non, R_non = [0, None, None]
 
         # -----------------
         # Social Prediction
@@ -146,42 +146,41 @@ class ReverberationModel(Model):
             re_matrix, f_re = self.resonance(self.picker.get_center(x_ego)[..., :2],
                                              self.picker.get_center(x_nei)[..., :2])
 
-            re_rev_bias, re_k1, re_k2 = self.re_rev(
+            social_pred, G_soc, R_soc = self.re_rev(
                 x_ego_diff, f_ego_diff, re_matrix, repeats, training)
         else:
-            re_rev_bias, re_k1, re_k2 = [0, None, None]
+            social_pred, G_soc, R_soc = [0, None, None]
 
         # ----------------------------------
         # Reverberation-Kernel Visualization
         # ----------------------------------
-        if (self.rev_args.draw_kernels and
-                None not in [self_k1, self_k2, re_k1, re_k2]):
+        if self.rev_args.draw_kernels:
             from .utils import show_kernel
 
-            inv_self_k2 = compute_inverse_kernel(self_k2)
-            inv_re_k2 = compute_inverse_kernel(re_k2)
-            [steps_en, steps_de] = [self.self_rev.Tsteps_en, self.self_rev.Tsteps_de]
+            iR_non = compute_inverse_kernel(R_non)
+            iR_soc = compute_inverse_kernel(R_soc)
+            [T_h, T_f] = [self.self_rev.T_h, self.self_rev.T_f]
 
             # Self-Reverberation kernels
             # show_kernel(self_k1, 'Self-Generating',
             #             1, steps_en, self.rev_args.Kc)
-            show_kernel(self_k2, 'Self-Reverberation',
-                        1, steps_en, steps_de)
-            show_kernel(inv_self_k2, 'I-Self-Reverberation',
-                        1, steps_de, steps_en)
+            show_kernel(R_non, 'Self-Reverberation',
+                        1, T_h, T_f)
+            show_kernel(iR_non, 'I-Self-Reverberation',
+                        1, T_f, T_h)
 
             # Social-Reverberation kernels
             # show_kernel(re_k1, 'Social-Generating',
             #             self.rev_args.partitions,
             #             steps_en, self.rev_args.Kc)
-            show_kernel(re_k2, 'Social-Reverberation',
+            show_kernel(R_soc, 'Social-Reverberation',
                         self.rev_args.partitions,
-                        steps_en, steps_de)
-            show_kernel(inv_re_k2, 'I-Social-Reverberation',
+                        T_h, T_f)
+            show_kernel(iR_soc, 'I-Social-Reverberation',
                         self.rev_args.partitions,
-                        steps_de, steps_en)
+                        T_f, T_h)
 
-        return linear_base + self_rev_bias + re_rev_bias
+        return linear_pred + non_interactive_pred + social_pred
 
 
 class Reverberation(Structure):

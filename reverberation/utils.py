@@ -2,7 +2,7 @@
 @Author: Conghao Wong
 @Date: 2024-12-16 11:00:09
 @LastEditors: Conghao Wong
-@LastEditTime: 2025-01-09 20:12:49
+@LastEditTime: 2025-04-15 20:19:52
 @Github: https://cocoon2wong.github.io
 @Copyright 2024 Conghao Wong, All Rights Reserved.
 """
@@ -18,12 +18,16 @@ from qpid.utils import ROOT_TEMP_DIR, dir_check
 TEMP_DIR = dir_check(os.path.join(ROOT_TEMP_DIR, 'Reverberation'))
 
 
-def show_kernel(k: torch.Tensor,
+def show_kernel(k: torch.Tensor | None,
                 name: str,
                 partitions: int,
                 obs_periods: int,
                 pred_periods: int,
                 normalize: int | bool = True):
+    
+    # Do nothing if `k` is not a Tensor
+    if (isinstance(k, torch.nn.Module) or (k is None)):
+        return
 
     # Kernel shape: (batch, steps, new_steps)
     _k: np.ndarray = k.cpu().numpy()
