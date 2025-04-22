@@ -2,7 +2,7 @@
 @Author: Conghao Wong
 @Date: 2024-12-05 15:17:31
 @LastEditors: Conghao Wong
-@LastEditTime: 2025-04-15 20:22:39
+@LastEditTime: 2025-04-22 10:47:21
 @Github: https://cocoon2wong.github.io
 @Copyright 2024 Conghao Wong, All Rights Reserved.
 """
@@ -59,7 +59,6 @@ class ReverberationModel(Model):
             angle_partitions=self.rev_args.partitions,
             transform_layer=self.tlayer,
             inverse_transform_layer=self.itlayer,
-            enable_lite_mode=self.rev_args.lite,
             encode_agent_types=self.rev_args.encode_agent_types,
             disable_G=self.rev_args.disable_G,
             disable_R=self.rev_args.disable_R,
@@ -92,7 +91,7 @@ class ReverberationModel(Model):
             # Social prediction layer
             self.re_rev = SocialPrediction(
                 input_ego_feature_dim=self.d//2,
-                input_re_feature_dim=self.d//2,
+                input_social_feature_dim=self.d//2,
                 output_feature_dim=self.d,
                 **settings,
             )
@@ -125,7 +124,7 @@ class ReverberationModel(Model):
         x_ego_diff = x_ego - linear_fit
 
         # The linear trajectory
-        if self.rev_args.compute_linear and not self.rev_args.no_linear_base:
+        if self.rev_args.compute_linear and not self.rev_args.test_with_linear:
             linear_pred = linear_pred[..., None, :, :]
         else:
             linear_pred = 0
@@ -133,7 +132,7 @@ class ReverberationModel(Model):
         # --------------------------
         # Non-interactive Prediction
         # --------------------------
-        if self.rev_args.compute_noninteractive and not self.rev_args.no_self_bias:
+        if self.rev_args.compute_noninteractive and not self.rev_args.test_with_noninteractive:
             non_interactive_pred, G_non, R_non = self.self_rev(
                 f_ego_diff, x_ego_diff, repeats, training)
         else:
@@ -142,12 +141,12 @@ class ReverberationModel(Model):
         # -----------------
         # Social Prediction
         # -----------------
-        if self.rev_args.compute_social and not self.rev_args.no_re_bias:
-            re_matrix, f_re = self.resonance(self.picker.get_center(x_ego)[..., :2],
-                                             self.picker.get_center(x_nei)[..., :2])
+        if self.rev_args.compute_social and not self.rev_args.test_with_social:
+            f_social, f_re = self.resonance(self.picker.get_center(x_ego)[..., :2],
+                                            self.picker.get_center(x_nei)[..., :2])
 
             social_pred, G_soc, R_soc = self.re_rev(
-                x_ego_diff, f_ego_diff, re_matrix, repeats, training)
+                x_ego_diff, f_ego_diff, f_social, repeats, training)
         else:
             social_pred, G_soc, R_soc = [0, None, None]
 

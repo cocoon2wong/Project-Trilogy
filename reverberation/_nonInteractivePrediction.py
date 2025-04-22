@@ -2,7 +2,7 @@
 @Author: Conghao Wong
 @Date: 2024-12-12 10:02:19
 @LastEditors: Conghao Wong
-@LastEditTime: 2025-04-15 20:05:05
+@LastEditTime: 2025-04-22 10:42:06
 @Github: https://cocoon2wong.github.io
 @Copyright 2024 Conghao Wong, All Rights Reserved.
 """
@@ -29,7 +29,7 @@ class NonInteractivePrediction(torch.nn.Module):
     - **Non-interactive-generating kernel**: Weighted sum features in different
       styles to achieve the random/characterized/multi-style prediction goal;
     - **Non-interactive-reverberation kernel**: Evaluate how much contribution
-      hat each historical frame (step) has made when planning future
+      each historical frame (step) has made for the ego when planning future
       trajectories on each specific future frame (step).
     """
 
@@ -39,9 +39,8 @@ class NonInteractivePrediction(torch.nn.Module):
                  traj_generations: int,
                  transform_layer: layers.transfroms._BaseTransformLayer,
                  inverse_transform_layer: layers.transfroms._BaseTransformLayer,
-                 enable_lite_mode: int | bool = False,
-                 disable_G: bool = True,
-                 disable_R: bool = True,
+                 disable_G: bool = False,
+                 disable_R: bool = False,
                  *args, **kwargs) -> None:
 
         super().__init__()
@@ -50,15 +49,14 @@ class NonInteractivePrediction(torch.nn.Module):
         self.d_i = input_feature_dim
         self.d = output_feature_dim
         self.d_noise = noise_depth
-
         self.K_g = traj_generations
-        self.lite = enable_lite_mode
 
+        # Ablation settings
         self.disable_G = disable_G
         self.disable_R = disable_R
 
         # Layers
-        # Transform layers
+        # Transform layers (for trajectories)
         self.Tlayer = transform_layer
         self.iTlayer = inverse_transform_layer
 
@@ -82,21 +80,14 @@ class NonInteractivePrediction(torch.nn.Module):
             include_top=False,
         )
 
-        # FC layers for computing reverberation kernels
-        if not self.lite:
-            self.k1 = KernelLayer(self.d, self.d, self.K_g)
-            self.k2 = KernelLayer(self.d, self.d, self.T_f)
-
-        else:
-            self.k1 = layers.Dense(self.d, self.K_g, torch.nn.Tanh)
-            self.k2 = layers.Dense(self.d, self.T_f, torch.nn.Tanh)
-
         # Reverberation-transform-related layers
+        # Main transform layer
         self.rev = ReverberationTransform(
             historical_steps=self.T_h,
             future_steps=self.T_f,
         )
 
+        # Kernel layers
         if self.disable_G:
             # Use the MSK-like way to generate stochastic predictions
             # See "MSN: Multi-Style Network for Trajectory Prediction"
@@ -104,6 +95,9 @@ class NonInteractivePrediction(torch.nn.Module):
                 feature_dim=self.d,
                 style_channels=self.K_g,
             )
+        else:
+            # The generating kernel
+            self.k1 = KernelLayer(self.d, self.d, self.K_g)
 
         if self.disable_R:
             # Forecast trajectories using direct FC layers
@@ -112,19 +106,24 @@ class NonInteractivePrediction(torch.nn.Module):
                 historical_steps=self.T_h,
                 future_steps=self.T_f,
             )
+        else:
+            # The reverberation kernel
+            self.k2 = KernelLayer(self.d, self.d, self.T_f)
 
         # Final output layer
         self.decoder = layers.Dense(self.d, self.M_f)
 
     def forward(self, f_ego_diff: torch.Tensor,
-                linear_fit: torch.Tensor,
+                x_ego_diff: torch.Tensor,
                 repeats: int = 1,
                 training=None, mask=None, *args, **kwargs):
 
         # Target values for queries
-        traj_targets = self.Tlayer(linear_fit)
+        # `x_ego_diff = x_ego - linear_fit`
+        traj_targets = self.Tlayer(x_ego_diff)
 
         # Trajectory features (ego)
+        # It serves as keys and queries in attention layers
         f = f_ego_diff
 
         all_predictions = []
@@ -134,7 +133,7 @@ class NonInteractivePrediction(torch.nn.Module):
                              size=list(f.shape[:-1]) + [self.d_noise])
             f_z = self.ie(z.to(f.device))
 
-            # -> (batch, T_h, 2*d_i)
+            # -> (batch, T_h, d)
             f_final = torch.concat([f, f_z], dim=-1)
 
             # Transformer backbone -> (batch, T_h, d)
