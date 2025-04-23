@@ -2,7 +2,7 @@
 @Author: Conghao Wong
 @Date: 2024-12-05 15:14:02
 @LastEditors: Conghao Wong
-@LastEditTime: 2025-04-22 10:42:42
+@LastEditTime: 2025-04-23 15:45:00
 @Github: https://cocoon2wong.github.io
 @Copyright 2024 Conghao Wong, All Rights Reserved.
 """
@@ -151,8 +151,13 @@ class ReverberationArgs(EmptyArgs):
     @property
     def draw_kernels(self) -> int:
         """
-        Choose whether to draw and show visualized kernels when testing.
-        It is typically used in the playground mode.
+        Choose whether or in which ways to draw and show visualized kernels when testing. It accepts an int value, including `[0, 1, 2, 3]`:
+        - `0`: Do nothing;
+        - `1`: Only visualize the reverberation kernel;
+        - `2`: Visualize both reverberation and generating kernels;
+        - `3`: Visualize both kernels and their inverse kernels.
+
+        This arg is typically used in the playground mode. 
         """
         return self._arg('draw_kernels', 0, argtype=TEMPORARY)
 

@@ -2,7 +2,7 @@
 @Author: Conghao Wong
 @Date: 2024-12-05 15:17:31
 @LastEditors: Conghao Wong
-@LastEditTime: 2025-04-22 10:47:21
+@LastEditTime: 2025-04-23 16:05:28
 @Github: https://cocoon2wong.github.io
 @Copyright 2024 Conghao Wong, All Rights Reserved.
 """
@@ -17,10 +17,11 @@ from qpid.training import Structure
 from qpid.utils import INIT_POSITION
 
 from .__args import ReverberationArgs
-from .__layers import LinearDiffEncoding, compute_inverse_kernel
+from .__layers import LinearDiffEncoding
 from ._nonInteractivePrediction import NonInteractivePrediction
 from ._resonanceLayer import ResonanceLayer
 from ._socialPrediction import SocialPrediction
+from .utils import vis_kernels
 
 
 class ReverberationModel(Model):
@@ -153,31 +154,9 @@ class ReverberationModel(Model):
         # ----------------------------------
         # Reverberation-Kernel Visualization
         # ----------------------------------
-        if self.rev_args.draw_kernels:
-            from .utils import show_kernel
-
-            iR_non = compute_inverse_kernel(R_non)
-            iR_soc = compute_inverse_kernel(R_soc)
-            [T_h, T_f] = [self.self_rev.T_h, self.self_rev.T_f]
-
-            # Self-Reverberation kernels
-            # show_kernel(self_k1, 'Self-Generating',
-            #             1, steps_en, self.rev_args.Kc)
-            show_kernel(R_non, 'Self-Reverberation',
-                        1, T_h, T_f)
-            show_kernel(iR_non, 'I-Self-Reverberation',
-                        1, T_f, T_h)
-
-            # Social-Reverberation kernels
-            # show_kernel(re_k1, 'Social-Generating',
-            #             self.rev_args.partitions,
-            #             steps_en, self.rev_args.Kc)
-            show_kernel(R_soc, 'Social-Reverberation',
-                        self.rev_args.partitions,
-                        T_h, T_f)
-            show_kernel(iR_soc, 'I-Social-Reverberation',
-                        self.rev_args.partitions,
-                        T_f, T_h)
+        if (d := self.rev_args.draw_kernels):
+            vis_kernels(R_non, G_non, 'Non-Interactive', d)
+            vis_kernels(R_soc, G_soc, 'Social', d, self.rev_args.partitions)
 
         return linear_pred + non_interactive_pred + social_pred
 
