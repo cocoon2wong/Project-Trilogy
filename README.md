@@ -132,6 +132,19 @@ About the `argtype`:
 
 <details>
     <summary>
+        <code>--down_sampling_rate</code>
+    </summary>
+    <p>
+        Selects whether to down-sample from multiple-generated predicted trajectories. This arg only works for multiple-generative models.
+    </p>
+    <ul>
+        <li>Type=<code>float</code>, argtype=<code>temporary</code>;</li>
+        <li>The default value is <code>1.0</code>.</li>
+    </ul>
+</details>
+
+<details>
+    <summary>
         <code>--draw_results</code> (short for <code>-dr</code>)
     </summary>
     <p>
@@ -322,6 +335,19 @@ About the `argtype`:
     <ul>
         <li>Type=<code>int</code>, argtype=<code>temporary</code>;</li>
         <li>The default value is <code>-1</code>.</li>
+    </ul>
+</details>
+
+<details>
+    <summary>
+        <code>--load_part</code>
+    </summary>
+    <p>
+        Choose whether to load only a part of the model weights if the <code>state_dict</code> of the saved model and the model in the code do not match. *IMPORTANT NOTE*: This arg is only used for some ablation experiments. It MAY lead to incorrect predictions or metrics.
+    </p>
+    <ul>
+        <li>Type=<code>int</code>, argtype=<code>temporary</code>;</li>
+        <li>The default value is <code>0</code>.</li>
     </ul>
 </details>
 
@@ -645,10 +671,10 @@ About the `argtype`:
         <code>--Kc</code>
     </summary>
     <p>
-        The number of style channels when making predictions.
+        The number of generations when making predictions. It is also the channels of the generating kernel in the proposed reverberation transform.
     </p>
     <ul>
-        <li>Type=<code>int</code>, argtype=<code>static</code>;</li>
+        <li>Type=<code>int</code>, argtype=<code>static</code>;</li><li>This arg can also be spelled as<code>--Kg</code>, <code>--K_g</code>;</li>
         <li>The default value is <code>20</code>.</li>
     </ul>
 </details>
@@ -658,7 +684,7 @@ About the `argtype`:
         <code>--T</code> (short for <code>-T</code>)
     </summary>
     <p>
-        Transform type used to compute trajectory spectrums. It could be: - <code>none</code>: no transformations - <code>haar</code>: haar wavelet transform - <code>db2</code>: DB2 wavelet transform.
+        Transform type used to compute trajectory spectrums. It could be: - <code>none</code>: no transformations; - <code>haar</code>: haar wavelet transform; - <code>db2</code>: DB2 wavelet transform.
     </p>
     <ul>
         <li>Type=<code>str</code>, argtype=<code>static</code>;</li>
@@ -671,7 +697,7 @@ About the `argtype`:
         <code>--compute_linear</code>
     </summary>
     <p>
-        Whether to learn to forecast the linear trajectory during training.
+        (bool) Choose whether to learn to forecast the linear trajectory during training.
     </p>
     <ul>
         <li>Type=<code>int</code>, argtype=<code>static</code>;</li><li>This arg can also be spelled as<code>--compute_linear_base</code>;</li>
@@ -684,7 +710,7 @@ About the `argtype`:
         <code>--compute_noninteractive</code>
     </summary>
     <p>
-        Whether to learn to forecast the non-interactive trajectory during training.
+        (bool) Choose whether to learn to forecast the non-interactive trajectory during training.
     </p>
     <ul>
         <li>Type=<code>int</code>, argtype=<code>static</code>;</li><li>This arg can also be spelled as<code>--learn_self_bias</code>, <code>--compute_self_bias</code>, <code>--compute_non</code>;</li>
@@ -697,7 +723,7 @@ About the `argtype`:
         <code>--compute_social</code>
     </summary>
     <p>
-        Whether to learn to forecast the social trajectory during training.
+        (bool) Choose whether to learn to forecast the social trajectory during training.
     </p>
     <ul>
         <li>Type=<code>int</code>, argtype=<code>static</code>;</li><li>This arg can also be spelled as<code>--learn_re_bias</code>, <code>--compute_re_bias</code>;</li>
@@ -707,10 +733,36 @@ About the `argtype`:
 
 <details>
     <summary>
+        <code>--disable_G</code>
+    </summary>
+    <p>
+        (bool) Choose whether to disable the generating kernels when applying the reverberation transform. An MSN-like generating approach will be used if this arg is set to <code>1</code>.
+    </p>
+    <ul>
+        <li>Type=<code>int</code>, argtype=<code>static</code>;</li>
+        <li>The default value is <code>0</code>.</li>
+    </ul>
+</details>
+
+<details>
+    <summary>
+        <code>--disable_R</code>
+    </summary>
+    <p>
+        (bool) Choose whether to disable the reverberation kernels when applying the reverberation transform. Flatten and fc layers will be used if this arg is set to <code>1</code>.
+    </p>
+    <ul>
+        <li>Type=<code>int</code>, argtype=<code>static</code>;</li>
+        <li>The default value is <code>0</code>.</li>
+    </ul>
+</details>
+
+<details>
+    <summary>
         <code>--draw_kernels</code>
     </summary>
     <p>
-        Choose whether to draw and show visualized kernels when testing. It is typically used in the playground mode.
+        Choose whether or in which ways to draw and show visualized kernels when testing. It accepts an int value, including <code>[0, 1, 2, 3]</code>: - <code>0</code>: Do nothing; - <code>1</code>: Only visualize the reverberation kernel; - <code>2</code>: Visualize both reverberation and generating kernels; - <code>3</code>: Visualize both kernels and their inverse kernels. This arg is typically used in the playground mode.
     </p>
     <ul>
         <li>Type=<code>int</code>, argtype=<code>temporary</code>;</li>
@@ -723,20 +775,7 @@ About the `argtype`:
         <code>--encode_agent_types</code>
     </summary>
     <p>
-        Choose whether to encode the type name of each agent. It is mainly used in multi-type-agent prediction scenes, providing a unique type-coding for each type of agents when encoding their trajectories.
-    </p>
-    <ul>
-        <li>Type=<code>int</code>, argtype=<code>static</code>;</li>
-        <li>The default value is <code>0</code>.</li>
-    </ul>
-</details>
-
-<details>
-    <summary>
-        <code>--lite</code>
-    </summary>
-    <p>
-        It controls whether to implement the full reverberation kernel on all historical steps and angle-based partitions or the simplified shared- steps. Simultaneously, the model will compute all angle-based social partitions on a flattened feature rather than all observation frames, which may further reduce the computation consumptions. This arg is typically used to obtain a model variation with faster computation and smaller model size, reducing prediction performance as a compromise.
+        (bool) Choose whether to encode the type name of each agent. It is mainly used in multi-type-agent prediction scenes, providing a unique type-coding for each type of agents when encoding their trajectories.
     </p>
     <ul>
         <li>Type=<code>int</code>, argtype=<code>static</code>;</li>
@@ -749,46 +788,7 @@ About the `argtype`:
         <code>--no_interaction</code>
     </summary>
     <p>
-        Whether to forecast trajectories by considering social interactions. It will compute all social-interaction-related components on the set of empty neighbors if this args is set to <code>1</code>.
-    </p>
-    <ul>
-        <li>Type=<code>int</code>, argtype=<code>temporary</code>;</li>
-        <li>The default value is <code>0</code>.</li>
-    </ul>
-</details>
-
-<details>
-    <summary>
-        <code>--no_linear_base</code>
-    </summary>
-    <p>
-        Ignoring the linear base term when forecasting. It only works when testing.
-    </p>
-    <ul>
-        <li>Type=<code>int</code>, argtype=<code>temporary</code>;</li>
-        <li>The default value is <code>0</code>.</li>
-    </ul>
-</details>
-
-<details>
-    <summary>
-        <code>--no_re_bias</code>
-    </summary>
-    <p>
-        Ignoring the resonance-bias term when forecasting. It only works when testing.
-    </p>
-    <ul>
-        <li>Type=<code>int</code>, argtype=<code>temporary</code>;</li>
-        <li>The default value is <code>0</code>.</li>
-    </ul>
-</details>
-
-<details>
-    <summary>
-        <code>--no_self_bias</code>
-    </summary>
-    <p>
-        Ignoring the self-bias term when forecasting. It only works when testing.
+        (bool) Whether to forecast trajectories by considering social interactions. It will compute all social-interaction-related components on the set of empty neighbors if this args is set to <code>1</code>.
     </p>
     <ul>
         <li>Type=<code>int</code>, argtype=<code>temporary</code>;</li>
@@ -801,11 +801,50 @@ About the `argtype`:
         <code>--partitions</code>
     </summary>
     <p>
-        The number of partitions when computing the angle-based feature.
+        The number of partitions when computing the angle-based feature. It is only used when modeling social interactions.
     </p>
     <ul>
         <li>Type=<code>int</code>, argtype=<code>static</code>;</li>
         <li>The default value is <code>-1</code>.</li>
+    </ul>
+</details>
+
+<details>
+    <summary>
+        <code>--test_with_linear</code>
+    </summary>
+    <p>
+        (bool) Choose whether to ignore the linear base when forecasting. It only works when testing.
+    </p>
+    <ul>
+        <li>Type=<code>int</code>, argtype=<code>temporary</code>;</li>
+        <li>The default value is <code>0</code>.</li>
+    </ul>
+</details>
+
+<details>
+    <summary>
+        <code>--test_with_noninteractive</code>
+    </summary>
+    <p>
+        (bool) Choose whether to ignore the self-bias when forecasting. It only works when testing.
+    </p>
+    <ul>
+        <li>Type=<code>int</code>, argtype=<code>temporary</code>;</li><li>This arg can also be spelled as<code>--test_with_non</code>;</li>
+        <li>The default value is <code>0</code>.</li>
+    </ul>
+</details>
+
+<details>
+    <summary>
+        <code>--test_with_social</code>
+    </summary>
+    <p>
+        (bool) Choose whether to ignore the resonance-bias when forecasting. It only works when testing.
+    </p>
+    <ul>
+        <li>Type=<code>int</code>, argtype=<code>temporary</code>;</li><li>This arg can also be spelled as<code>--test_with_soc</code>;</li>
+        <li>The default value is <code>0</code>.</li>
     </ul>
 </details>
 
