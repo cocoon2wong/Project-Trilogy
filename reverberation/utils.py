@@ -2,7 +2,7 @@
 @Author: Conghao Wong
 @Date: 2024-12-16 11:00:09
 @LastEditors: Conghao Wong
-@LastEditTime: 2025-04-23 16:40:46
+@LastEditTime: 2025-06-03 16:48:39
 @Github: https://cocoon2wong.github.io
 @Copyright 2024 Conghao Wong, All Rights Reserved.
 """
@@ -12,6 +12,7 @@ import os
 import numpy as np
 import torch
 from matplotlib import pyplot as plt
+from scipy.interpolate import make_interp_spline
 
 from qpid.utils import ROOT_TEMP_DIR, dir_check
 
@@ -24,37 +25,56 @@ def show_kernel(k: torch.Tensor | None,
                 name: str,
                 partitions: int,
                 obs_periods: int,
-                pred_periods: int,
-                normalize: int | bool = True):
+                pred_periods: int):
 
     # Do nothing if `k` is not a Tensor
-    if (isinstance(k, torch.nn.Module) or (k is None)):
+    if not isinstance(k, torch.Tensor):
         return
 
-    # Kernel shape: (batch, steps, new_steps)
+    # For `batch_size > 1` cases
     _k: np.ndarray = k.cpu().numpy()
     _k = np.mean(_k, axis=-3)   # (steps, new_steps)
 
-    # Normalize on EACH OUTPUT STEP
-    if normalize:
-        _min = np.min(_k, axis=-2, keepdims=True)
-        _max = np.max(_k, axis=-2, keepdims=True)
-        _k = (_k - _min)/(_max - _min)
-    else:
-        _k = _k ** 2
-
+    # Separate partitions
+    # Final kernel shape: (batch, steps, new_steps)
     _k = np.reshape(_k, [obs_periods, partitions, pred_periods])
 
-    # Display kernels on each new step
+    # Display curves on each partition
     title = f'Kernel {name}'
     plt.close(title)
-
     fig = plt.figure(title)
 
-    for _j in range(pred_periods):
-        ax = fig.add_subplot(1, pred_periods, _j + 1)
-        ax.imshow(_k[:, :, _j])
-        ax.axis('off')
+    for _p in range(partitions):
+        rows = int(np.ceil(partitions/4))
+        cols = int(np.ceil(partitions/2))
+        ax = fig.add_subplot(rows, cols, _p + 1)
+
+        # Remove the linear part
+        _matrix = _k[:, _p, :]
+        _matrix = _matrix - np.mean(_matrix, axis=0, keepdims=True)
+        _matrix = (_matrix - np.min(_matrix)) / \
+            (np.max(_matrix) - np.min(_matrix))
+
+        for _o in range(obs_periods):
+            _y = _matrix[_o]
+            _x = np.arange(len(_y))
+
+            # Draw as reverberation curves
+            _x_interp = np.linspace(_x[0], _x[-1], 100)
+            _y_interp = make_interp_spline(_x, _y)(_x_interp)
+
+            ax.plot(_x_interp, _y_interp, label=f'Step {_o}')
+            ax.plot(_x, _y, 'x', color='black')
+
+            # Save meta data (txt)
+            _path = os.path.join(TEMP_DIR, f'meta_{title}_p{_p}_o{_o}.txt')
+            np.savetxt(_path, _y)
+
+        ax.set_ylim(-0.5, 1.5)
+        ax.legend()
+
+        if partitions > 1:
+            ax.set_title(f'Partition {_p}')
 
     plt.show()
 

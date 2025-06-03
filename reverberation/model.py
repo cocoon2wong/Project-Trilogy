@@ -2,7 +2,7 @@
 @Author: Conghao Wong
 @Date: 2024-12-05 15:17:31
 @LastEditors: Conghao Wong
-@LastEditTime: 2025-04-23 16:05:28
+@LastEditTime: 2025-06-03 16:34:44
 @Github: https://cocoon2wong.github.io
 @Copyright 2024 Conghao Wong, All Rights Reserved.
 """
@@ -21,7 +21,6 @@ from .__layers import LinearDiffEncoding
 from ._nonInteractivePrediction import NonInteractivePrediction
 from ._resonanceLayer import ResonanceLayer
 from ._socialPrediction import SocialPrediction
-from .utils import vis_kernels
 
 
 class ReverberationModel(Model):
@@ -155,6 +154,7 @@ class ReverberationModel(Model):
         # Reverberation-Kernel Visualization
         # ----------------------------------
         if (d := self.rev_args.draw_kernels):
+            from .utils import vis_kernels
             vis_kernels(R_non, G_non, 'Non-Interactive', d)
             vis_kernels(R_soc, G_soc, 'Social', d, self.rev_args.partitions)
 
