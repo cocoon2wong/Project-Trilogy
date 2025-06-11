@@ -2,7 +2,7 @@
 @Author: Conghao Wong
 @Date: 2024-12-16 11:00:09
 @LastEditors: Conghao Wong
-@LastEditTime: 2025-06-03 16:48:39
+@LastEditTime: 2025-06-11 10:15:49
 @Github: https://cocoon2wong.github.io
 @Copyright 2024 Conghao Wong, All Rights Reserved.
 """
@@ -46,14 +46,12 @@ def show_kernel(k: torch.Tensor | None,
 
     for _p in range(partitions):
         rows = int(np.ceil(partitions/4))
-        cols = int(np.ceil(partitions/2))
+        cols = min(4, partitions)
         ax = fig.add_subplot(rows, cols, _p + 1)
 
         # Remove the linear part
-        _matrix = _k[:, _p, :]
-        _matrix = _matrix - np.mean(_matrix, axis=0, keepdims=True)
-        _matrix = (_matrix - np.min(_matrix)) / \
-            (np.max(_matrix) - np.min(_matrix))
+        _matrix = _k[:, _p, :] ** 2      # (obs, pred)
+        _matrix = _matrix / np.sum(_matrix, axis=0, keepdims=True)
 
         for _o in range(obs_periods):
             _y = _matrix[_o]
@@ -70,7 +68,7 @@ def show_kernel(k: torch.Tensor | None,
             _path = os.path.join(TEMP_DIR, f'meta_{title}_p{_p}_o{_o}.txt')
             np.savetxt(_path, _y)
 
-        ax.set_ylim(-0.5, 1.5)
+        ax.set_ylim(np.min(_matrix) - 0.1, np.max(_matrix) + 0.1)
         ax.legend()
 
         if partitions > 1:
