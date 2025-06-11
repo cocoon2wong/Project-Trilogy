@@ -2,7 +2,7 @@
 @Author: Conghao Wong
 @Date: 2024-12-16 11:00:09
 @LastEditors: Conghao Wong
-@LastEditTime: 2025-06-11 10:15:49
+@LastEditTime: 2025-06-11 10:25:47
 @Github: https://cocoon2wong.github.io
 @Copyright 2024 Conghao Wong, All Rights Reserved.
 """
@@ -67,6 +67,10 @@ def show_kernel(k: torch.Tensor | None,
             # Save meta data (txt)
             _path = os.path.join(TEMP_DIR, f'meta_{title}_p{_p}_o{_o}.txt')
             np.savetxt(_path, _y)
+
+        # Draw the baseline
+        ax.plot(_x, (1/obs_periods) * np.ones_like(_x), 
+                color='grey', linestyle='--', label='AVG')
 
         ax.set_ylim(np.min(_matrix) - 0.1, np.max(_matrix) + 0.1)
         ax.legend()
