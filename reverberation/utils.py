@@ -2,7 +2,7 @@
 @Author: Conghao Wong
 @Date: 2024-12-16 11:00:09
 @LastEditors: Conghao Wong
-@LastEditTime: 2025-06-11 10:25:47
+@LastEditTime: 2025-06-12 15:41:13
 @Github: https://cocoon2wong.github.io
 @Copyright 2024 Conghao Wong, All Rights Reserved.
 """
@@ -55,17 +55,17 @@ def show_kernel(k: torch.Tensor | None,
 
         for _o in range(obs_periods):
             _y = _matrix[_o]
-            _x = np.arange(len(_y))
+            _x = np.arange(len(_y)) + 1 + obs_periods
 
             # Draw as reverberation curves
             _x_interp = np.linspace(_x[0], _x[-1], 100)
             _y_interp = make_interp_spline(_x, _y)(_x_interp)
 
-            ax.plot(_x_interp, _y_interp, label=f'Step {_o}')
+            ax.plot(_x_interp, _y_interp, label=f'Step {_o+1}')
             ax.plot(_x, _y, 'x', color='black')
 
             # Save meta data (txt)
-            _path = os.path.join(TEMP_DIR, f'meta_{title}_p{_p}_o{_o}.txt')
+            _path = os.path.join(TEMP_DIR, f'meta_{title}_p{_p+1}_o{_o+1}.txt')
             np.savetxt(_path, _y)
 
         # Draw the baseline
@@ -75,8 +75,10 @@ def show_kernel(k: torch.Tensor | None,
         ax.set_ylim(np.min(_matrix) - 0.1, np.max(_matrix) + 0.1)
         ax.legend()
 
+        ax.set_xlabel('Future steps (t)')
+
         if partitions > 1:
-            ax.set_title(f'Partition {_p}')
+            ax.set_title(f'Partition {_p+1}')
 
     plt.show()
 
