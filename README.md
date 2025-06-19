@@ -955,6 +955,19 @@ About the `argtype`:
     </ul>
 </details>
 
+<details>
+    <summary>
+        <code>--draw_with_plt</code>
+    </summary>
+    <p>
+        (bool) Choose whether to use PLT as the preferred method for visualizing trajectories (on the empty canvas). It will try to visualize all points on the scene images if this arg is not enabled.
+    </p>
+    <ul>
+        <li>Type=<code>int</code>, argtype=<code>temporary</code>;</li>
+        <li>The default value is <code>0</code>.</li>
+    </ul>
+</details>
+
 ### Playground Args
 
 
@@ -973,10 +986,10 @@ About the `argtype`:
 
 <details>
     <summary>
-        <code>--compute_social_diff</code>
+        <code>--compute_social_mod</code>
     </summary>
     <p>
-        (Working in process).
+        (bool) Choose whether to enable the computing of social modifications.
     </p>
     <ul>
         <li>Type=<code>int</code>, argtype=<code>temporary</code>;</li>
@@ -989,7 +1002,7 @@ About the `argtype`:
         <code>--do_not_draw_neighbors</code>
     </summary>
     <p>
-        Choose whether to draw neighboring-agents' trajectories.
+        (bool) Choose whether to draw neighboring-agents' trajectories.
     </p>
     <ul>
         <li>Type=<code>int</code>, argtype=<code>temporary</code>;</li>
@@ -1002,7 +1015,7 @@ About the `argtype`:
         <code>--draw_seg_map</code>
     </summary>
     <p>
-        Choose whether to draw segmentation maps on the canvas.
+        (bool) Choose whether to draw segmentation maps on the canvas.
     </p>
     <ul>
         <li>Type=<code>int</code>, argtype=<code>temporary</code>;</li>
@@ -1015,7 +1028,7 @@ About the `argtype`:
         <code>--lite</code>
     </summary>
     <p>
-        Choose whether to show the lite version of tk window.
+        (bool) Choose whether to show the lite-version's visualization window.
     </p>
     <ul>
         <li>Type=<code>int</code>, argtype=<code>temporary</code>;</li>
@@ -1054,7 +1067,7 @@ About the `argtype`:
         <code>--save_full_outputs</code>
     </summary>
     <p>
-        Choose whether to save all outputs as images.
+        (bool) Choose whether to save all outputs as images.
     </p>
     <ul>
         <li>Type=<code>int</code>, argtype=<code>temporary</code>;</li>
