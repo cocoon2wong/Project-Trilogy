@@ -2,7 +2,7 @@
 @Author: Conghao Wong
 @Date: 2024-12-16 11:00:09
 @LastEditors: Conghao Wong
-@LastEditTime: 2025-06-12 15:41:13
+@LastEditTime: 2025-07-09 16:35:59
 @Github: https://cocoon2wong.github.io
 @Copyright 2024 Conghao Wong, All Rights Reserved.
 """
@@ -25,7 +25,10 @@ def show_kernel(k: torch.Tensor | None,
                 name: str,
                 partitions: int,
                 obs_periods: int,
-                pred_periods: int):
+                pred_periods: int,
+                partition_label='Partition',
+                figs_per_row=4,
+                show_axis_labels=True):
 
     # Do nothing if `k` is not a Tensor
     if not isinstance(k, torch.Tensor):
@@ -45,8 +48,8 @@ def show_kernel(k: torch.Tensor | None,
     fig = plt.figure(title)
 
     for _p in range(partitions):
-        rows = int(np.ceil(partitions/4))
-        cols = min(4, partitions)
+        rows = int(np.ceil(partitions/figs_per_row))
+        cols = min(figs_per_row, partitions)
         ax = fig.add_subplot(rows, cols, _p + 1)
 
         # Remove the linear part
@@ -69,16 +72,20 @@ def show_kernel(k: torch.Tensor | None,
             np.savetxt(_path, _y)
 
         # Draw the baseline
-        ax.plot(_x, (1/obs_periods) * np.ones_like(_x), 
+        ax.plot(_x, (1/obs_periods) * np.ones_like(_x),
                 color='grey', linestyle='--', label='AVG')
 
         ax.set_ylim(np.min(_matrix) - 0.1, np.max(_matrix) + 0.1)
-        ax.legend()
 
-        ax.set_xlabel('Future steps (t)')
+        if show_axis_labels:
+            ax.legend()
+            ax.set_xlabel('Future steps (t)')
+        else:
+            ax.set_xticks([])
+            ax.set_yticks([])
 
         if partitions > 1:
-            ax.set_title(f'Partition {_p+1}')
+            ax.set_title(f'{partition_label} {_p+1}')
 
     plt.show()
 
@@ -92,16 +99,33 @@ def vis_kernels(R: torch.Tensor | None,
     from .utils import show_kernel
 
     if (setting >= 1) and (isinstance(R, torch.Tensor)):
+        # Shape of R: (batch, past_steps, future_steps)
+        # or (batch, partitions * past_steps, future_steps)
         [steps, T_f] = R.shape[-2:]
         T_h = steps // partitions
         show_kernel(R, f'{name}: Reverberation Kernel',
                     partitions, T_h, T_f)
 
-    if (setting >= 2) and (isinstance(G, torch.Tensor)):
-        T_h = G.shape[-2] // partitions
+    if ((setting >= 2) and (isinstance(R, torch.Tensor))
+            and (isinstance(G, torch.Tensor)) and (partitions == 1)):
+        # Shape of G: (batch, past_steps, K)
+        # NOTE: G kernels will be displayed along with R kernels
+        # It only accepts `partitions == 1` cases
+        T_f = R.shape[-1]
+        T_h = G.shape[-2]
         K_g = G.shape[-1]
-        show_kernel(G, f'{name}: Generating Kernel',
-                    partitions, T_h, K_g)
+
+        # Multiple G on R
+        _R = R[:, :, None, :]   # (batch, past_steps, 1, future_steps)
+        _G = G[:, :, :, None]   # (batch, past_steps, K, 1)
+        _G = _R * _G            # (batch, past_steps, K, future_steps)
+        _G = torch.reshape(_G, [-1, T_h * K_g, T_f])
+
+        show_kernel(_G, f'{name}: Generating Kernel (on R)',
+                    K_g, T_h, T_f,
+                    partition_label='Generation',
+                    figs_per_row=5,
+                    show_axis_labels=False)
 
     if setting >= 3:
         if isinstance(R, torch.Tensor):
