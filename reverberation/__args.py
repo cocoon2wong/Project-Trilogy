@@ -2,7 +2,7 @@
 @Author: Conghao Wong
 @Date: 2024-12-05 15:14:02
 @LastEditors: Conghao Wong
-@LastEditTime: 2025-04-23 15:45:00
+@LastEditTime: 2025-07-24 10:39:32
 @Github: https://cocoon2wong.github.io
 @Copyright 2024 Conghao Wong, All Rights Reserved.
 """
@@ -21,7 +21,19 @@ class ReverberationArgs(EmptyArgs):
         """
         return self._arg('Kc', 20, argtype=STATIC,
                          other_names=['Kg', 'K_g'],
-                         desc_in_model_summary='Output channels')
+                         desc_in_model_summary='Generating channels')
+
+    @property
+    def select_generating_channel(self) -> int:
+        """
+        (Ablation Only) Select one of the generating channel as the direct
+        output of the prediction network.
+        Value range: 0 <= n < K_g.
+        NOTE: This MAY lead to significant performance degradation as only
+        one channel is reserved for prediction. This arg is only used for
+        conducting ablation analyses or discussions.
+        """
+        return self._arg('select_generating_channel', -1, argtype=TEMPORARY)
 
     @property
     def partitions(self) -> int:
