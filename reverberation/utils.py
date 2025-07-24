@@ -2,7 +2,7 @@
 @Author: Conghao Wong
 @Date: 2024-12-16 11:00:09
 @LastEditors: Conghao Wong
-@LastEditTime: 2025-07-09 16:35:59
+@LastEditTime: 2025-07-09 19:28:01
 @Github: https://cocoon2wong.github.io
 @Copyright 2024 Conghao Wong, All Rights Reserved.
 """
@@ -124,7 +124,7 @@ def vis_kernels(R: torch.Tensor | None,
         show_kernel(_G, f'{name}: Generating Kernel (on R)',
                     K_g, T_h, T_f,
                     partition_label='Generation',
-                    figs_per_row=5,
+                    figs_per_row=10,
                     show_axis_labels=False)
 
     if setting >= 3:

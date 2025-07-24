@@ -811,6 +811,19 @@ About the `argtype`:
 
 <details>
     <summary>
+        <code>--select_generating_channel</code>
+    </summary>
+    <p>
+        (Ablation Only) Select one of the generating channel as the direct output of the prediction network. Value range: 0 <= n < K_g. NOTE: This MAY lead to significant performance degradation as only one channel is reserved for prediction. This arg is only used for conducting ablation analyses or discussions.
+    </p>
+    <ul>
+        <li>Type=<code>int</code>, argtype=<code>temporary</code>;</li>
+        <li>The default value is <code>-1</code>.</li>
+    </ul>
+</details>
+
+<details>
+    <summary>
         <code>--test_with_linear</code>
     </summary>
     <p>
@@ -990,6 +1003,19 @@ About the `argtype`:
     </summary>
     <p>
         (bool) Choose whether to enable the computing of social modifications.
+    </p>
+    <ul>
+        <li>Type=<code>int</code>, argtype=<code>temporary</code>;</li>
+        <li>The default value is <code>0</code>.</li>
+    </ul>
+</details>
+
+<details>
+    <summary>
+        <code>--default_agent</code>
+    </summary>
+    <p>
+        Set the default index of agent to be predicted.
     </p>
     <ul>
         <li>Type=<code>int</code>, argtype=<code>temporary</code>;</li>
