@@ -2,7 +2,7 @@
 @Author: Conghao Wong
 @Date: 2024-12-05 15:14:02
 @LastEditors: Conghao Wong
-@LastEditTime: 2025-07-24 10:39:32
+@LastEditTime: 2025-08-25 15:58:17
 @Github: https://cocoon2wong.github.io
 @Copyright 2024 Conghao Wong, All Rights Reserved.
 """
@@ -163,7 +163,8 @@ class ReverberationArgs(EmptyArgs):
     @property
     def draw_kernels(self) -> int:
         """
-        Choose whether or in which ways to draw and show visualized kernels when testing. It accepts an int value, including `[0, 1, 2, 3]`:
+        Choose whether or in which ways to draw and show visualized kernels
+        when testing. It accepts an int value, including `[0, 1, 2, 3]`:
         - `0`: Do nothing;
         - `1`: Only visualize the reverberation kernel;
         - `2`: Visualize both reverberation and generating kernels;
@@ -172,6 +173,17 @@ class ReverberationArgs(EmptyArgs):
         This arg is typically used in the playground mode. 
         """
         return self._arg('draw_kernels', 0, argtype=TEMPORARY)
+
+    @property
+    def select_social_partition(self) -> int:
+        """
+        Choose which social partition will be displayed when visualizing social
+        generating kernels.
+        The indices of social partitions start from `1`, rather than `0`.
+        It only works when the arg `draw_kernels` is set to `2` or `3`.
+        NOTE: This value should be no more than the number of total partitions.
+        """
+        return self._arg('select_social_partition', 1, argtype=TEMPORARY)
 
     def _init_all_args(self):
         super()._init_all_args()

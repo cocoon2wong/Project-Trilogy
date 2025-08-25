@@ -2,7 +2,7 @@
 @Author: Conghao Wong
 @Date: 2024-12-05 15:17:31
 @LastEditors: Conghao Wong
-@LastEditTime: 2025-07-24 10:40:57
+@LastEditTime: 2025-08-25 15:58:25
 @Github: https://cocoon2wong.github.io
 @Copyright 2024 Conghao Wong, All Rights Reserved.
 """
@@ -156,7 +156,9 @@ class ReverberationModel(Model):
         if (d := self.rev_args.draw_kernels):
             from .utils import vis_kernels
             vis_kernels(R_non, G_non, 'Non-Interactive', d)
-            vis_kernels(R_soc, G_soc, 'Social', d, self.rev_args.partitions)
+            vis_kernels(R_soc, G_soc, 'Social', d,
+                        self.rev_args.partitions,
+                        self.rev_args.select_social_partition)
 
         # -> (batch, K_g, pred, dim)
         y = linear_pred + non_interactive_pred + social_pred
@@ -164,7 +166,7 @@ class ReverberationModel(Model):
         # Select a generation (only for ablation studies)
         if (s := self.rev_args.select_generating_channel) != -1:
             y = y[..., s, None, :, :]
-        
+
         return y
 
 

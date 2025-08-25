@@ -2,7 +2,7 @@
 @Author: Conghao Wong
 @Date: 2024-12-16 11:00:09
 @LastEditors: Conghao Wong
-@LastEditTime: 2025-07-09 19:28:01
+@LastEditTime: 2025-08-25 16:00:23
 @Github: https://cocoon2wong.github.io
 @Copyright 2024 Conghao Wong, All Rights Reserved.
 """
@@ -36,10 +36,10 @@ def show_kernel(k: torch.Tensor | None,
 
     # For `batch_size > 1` cases
     _k: np.ndarray = k.cpu().numpy()
-    _k = np.mean(_k, axis=-3)   # (steps, new_steps)
+    _k = np.mean(_k, axis=0)   # (steps, new_steps)
 
     # Separate partitions
-    # Final kernel shape: (batch, steps, new_steps)
+    # Final kernel shape: (steps, partitions, new_steps)
     _k = np.reshape(_k, [obs_periods, partitions, pred_periods])
 
     # Display curves on each partition
@@ -52,7 +52,7 @@ def show_kernel(k: torch.Tensor | None,
         cols = min(figs_per_row, partitions)
         ax = fig.add_subplot(rows, cols, _p + 1)
 
-        # Remove the linear part
+        # Get data of this partition
         _matrix = _k[:, _p, :] ** 2      # (obs, pred)
         _matrix = _matrix / np.sum(_matrix, axis=0, keepdims=True)
 
@@ -94,23 +94,46 @@ def vis_kernels(R: torch.Tensor | None,
                 G: torch.Tensor | None,
                 name: str,
                 setting: int = 1,
-                partitions: int = 1):
+                partitions: int = 1,
+                selected_partition: int = 1):
 
     from .utils import show_kernel
 
     if (setting >= 1) and (isinstance(R, torch.Tensor)):
         # Shape of R: (batch, past_steps, future_steps)
-        # or (batch, partitions * past_steps, future_steps)
+        # or (batch, past_steps * partitions, future_steps)
         [steps, T_f] = R.shape[-2:]
         T_h = steps // partitions
         show_kernel(R, f'{name}: Reverberation Kernel',
-                    partitions, T_h, T_f)
+                    partitions, T_h, T_f,
+                    show_axis_labels=False if partitions > 1 else True)
 
     if ((setting >= 2) and (isinstance(R, torch.Tensor))
-            and (isinstance(G, torch.Tensor)) and (partitions == 1)):
+            and (isinstance(G, torch.Tensor))):
         # Shape of G: (batch, past_steps, K)
         # NOTE: G kernels will be displayed along with R kernels
-        # It only accepts `partitions == 1` cases
+        # It only accepts `partitions == 1` cases when visualizing
+
+        postfix = ''
+
+        if partitions > 1:
+            if ((p := selected_partition) > partitions):
+                return
+
+            # Current R shape: (batch, past_steps, future_steps)
+            [steps, T_f] = R.shape[-2:]
+            K = G.shape[-1]
+            T_h = steps // partitions
+
+            # Reshape and select one social partition
+            R = torch.reshape(R, [-1, T_h, partitions, T_f])
+            G = torch.reshape(G, [-1, T_h, partitions, K])
+            R = R[..., p-1, :]
+            G = G[..., p-1, :]
+
+            # Title prefix
+            postfix = f' (on Social Partition {p})'
+
         T_f = R.shape[-1]
         T_h = G.shape[-2]
         K_g = G.shape[-1]
@@ -121,7 +144,7 @@ def vis_kernels(R: torch.Tensor | None,
         _G = _R * _G            # (batch, past_steps, K, future_steps)
         _G = torch.reshape(_G, [-1, T_h * K_g, T_f])
 
-        show_kernel(_G, f'{name}: Generating Kernel (on R)',
+        show_kernel(_G, f'{name}: Generating Kernel (on R)' + postfix,
                     K_g, T_h, T_f,
                     partition_label='Generation',
                     figs_per_row=10,
