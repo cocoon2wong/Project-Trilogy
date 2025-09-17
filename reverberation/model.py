@@ -2,7 +2,7 @@
 @Author: Conghao Wong
 @Date: 2024-12-05 15:17:31
 @LastEditors: Conghao Wong
-@LastEditTime: 2025-08-25 15:58:25
+@LastEditTime: 2025-09-17 11:19:06
 @Github: https://cocoon2wong.github.io
 @Copyright 2024 Conghao Wong, All Rights Reserved.
 """
@@ -36,15 +36,19 @@ class ReverberationModel(Model):
         self.rev_args = self.args.register_subargs(ReverberationArgs, 'rev')
 
         # Set model inputs
+        inputs = [INPUT_TYPES.OBSERVED_TRAJ,
+                  INPUT_TYPES.NEIGHBOR_TRAJ]
+
         # Types of agents are only used in complex scenes
         # For other datasets, keep it disabled (through the arg)
-        if not self.rev_args.encode_agent_types:
-            self.set_inputs(INPUT_TYPES.OBSERVED_TRAJ,
-                            INPUT_TYPES.NEIGHBOR_TRAJ)
-        else:
-            self.set_inputs(INPUT_TYPES.OBSERVED_TRAJ,
-                            INPUT_TYPES.NEIGHBOR_TRAJ,
-                            INPUT_TYPES.AGENT_TYPES)
+        if self.rev_args.encode_agent_types:
+            inputs.append(INPUT_TYPES.AGENT_TYPES)
+
+        # It will not prepare neighbors' trajectories when disabling social parts
+        if not self.rev_args.compute_social:
+            inputs.remove(INPUT_TYPES.NEIGHBOR_TRAJ)
+
+        self.set_inputs(*inputs)
 
         # Layers
         # Transform layers
@@ -101,11 +105,13 @@ class ReverberationModel(Model):
         # Unpack inputs
         # -------------
         x_ego = self.get_input(inputs, INPUT_TYPES.OBSERVED_TRAJ)
-        x_nei = self.get_input(inputs, INPUT_TYPES.NEIGHBOR_TRAJ)
 
-        # Create empty neighbors (mainly used in qualitative analyses)
-        if self.rev_args.no_interaction and not training:
-            x_nei = INIT_POSITION * torch.ones_like(x_nei)
+        if self.rev_args.compute_social:
+            x_nei = self.get_input(inputs, INPUT_TYPES.NEIGHBOR_TRAJ)
+
+            # Create empty neighbors (mainly used in qualitative analyses)
+            if self.rev_args.no_interaction and not training:
+                x_nei = INIT_POSITION * torch.ones_like(x_nei)
 
         # Agent types (labels) will be encoded only in complex scenes
         if self.rev_args.encode_agent_types:
