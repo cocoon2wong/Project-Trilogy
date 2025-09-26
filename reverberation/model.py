@@ -2,7 +2,7 @@
 @Author: Conghao Wong
 @Date: 2024-12-05 15:17:31
 @LastEditors: Conghao Wong
-@LastEditTime: 2025-09-17 11:19:06
+@LastEditTime: 2025-09-26 09:48:48
 @Github: https://cocoon2wong.github.io
 @Copyright 2024 Conghao Wong, All Rights Reserved.
 """
@@ -38,6 +38,13 @@ class ReverberationModel(Model):
         # Set model inputs
         inputs = [INPUT_TYPES.OBSERVED_TRAJ,
                   INPUT_TYPES.NEIGHBOR_TRAJ]
+
+        # Set metrics
+        self.structure: Reverberation  # For type hints
+        if self.rev_args.compute_statistical_metrics:
+            from .__metrics import MeanADE, MeanFDE, StdADE, StdFDE
+            self.structure.metrics.set({MeanADE: 1.0, StdADE: 0.0,
+                                        MeanFDE: 0.0, StdFDE: 0.0})
 
         # Types of agents are only used in complex scenes
         # For other datasets, keep it disabled (through the arg)

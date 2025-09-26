@@ -2,7 +2,7 @@
 @Author: Conghao Wong
 @Date: 2024-12-05 15:14:02
 @LastEditors: Conghao Wong
-@LastEditTime: 2025-08-25 15:58:17
+@LastEditTime: 2025-09-26 09:48:19
 @Github: https://cocoon2wong.github.io
 @Copyright 2024 Conghao Wong, All Rights Reserved.
 """
@@ -184,6 +184,13 @@ class ReverberationArgs(EmptyArgs):
         NOTE: This value should be no more than the number of total partitions.
         """
         return self._arg('select_social_partition', 1, argtype=TEMPORARY)
+
+    @property
+    def compute_statistical_metrics(self) -> int:
+        """
+        (bool) Choose whether to compute metrics as `mean $\\pm$ std`.
+        """
+        return self._arg('compute_statistical_metrics', 0, argtype=TEMPORARY)
 
     def _init_all_args(self):
         super()._init_all_args()
