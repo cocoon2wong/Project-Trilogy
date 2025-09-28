@@ -23,5 +23,6 @@ temp*
 playground.ipynb
 weights
 
-# Only in this repo
+# Ignore previous models
 resonance
+socialCircle
